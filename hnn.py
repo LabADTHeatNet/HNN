@@ -50,10 +50,11 @@ if __name__ == '__main__':
     )
 
     model = dict(
-        name='EdgeRegressionNetWithGAT',
+        name='EdgeRegressionNetSAGE',
         kwargs=dict(
             hidden_dim=8,
-            heads=4
+            heads=4,
+            aggr='lstm'
         ),
     )
 

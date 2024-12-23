@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 
 class EdgeRegressionNetWithMLP(nn.Module):
-    def __init__(self, node_in_dim, edge_in_dim, hidden_dim, out_dim):
+    def __init__(self, node_in_dim, edge_in_dim, hidden_dim, out_dim, **kwargs):
         super(EdgeRegressionNetWithMLP, self).__init__()
 
         # Линейные слои для приведения данных из разных источников к общей размерности

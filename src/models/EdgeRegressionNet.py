@@ -5,7 +5,7 @@ from torch.nn import Sequential, Linear, ReLU
 
 
 class EdgeRegressionNet(torch.nn.Module):
-    def __init__(self, node_in_dim, edge_in_dim, hidden_dim, out_dim):
+    def __init__(self, node_in_dim, edge_in_dim, hidden_dim, out_dim, **kwargs):
         super(EdgeRegressionNet, self).__init__()
 
         # GCN для обработки node features
