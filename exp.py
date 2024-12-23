@@ -6,7 +6,7 @@ import tqdm
 from pprint import pprint
 
 import torch
-
+from torchinfo import summary
 from torch.utils.tensorboard import SummaryWriter
 from clearml import (
     Task,
@@ -57,8 +57,15 @@ def exp(cfg, project_name='HeatNet', run_clear_ml=False, log_dir=None):
     model = model_fn(node_in_dim=node_in_dim,
                      edge_in_dim=edge_in_dim,
                      out_dim=out_dim,
-                     **cfg['model']['kwargs']
-                     ).to(device)
+                     **cfg['model']['kwargs'])
+
+    with torch.no_grad():
+        pred_tmp = model(batch.x, batch.edge_index, batch.edge_attr)
+    print("Размер вывода:")
+    print(pred_tmp.shape)
+
+    print(model)
+    summary(model)
 
     optimizer_fn = getattr(importlib.import_module(
         'torch.optim'), cfg['optimizer']['name'])
@@ -89,7 +96,9 @@ def exp(cfg, project_name='HeatNet', run_clear_ml=False, log_dir=None):
     else:
         task = None
     writer = SummaryWriter(log_dir=log_dir)
-
+    
+    model = model.to(device)
+    
     best_score = torch.inf
     with tqdm.tqdm(total=cfg['train']['num_epochs'], desc="Epochs", unit="epoch") as pbar:
         for epoch in range(0, cfg['train']['num_epochs']):

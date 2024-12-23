@@ -15,10 +15,10 @@ def get_str_timestamp(timestamp=None):
 
 # Функции для метрик
 def compute_metrics(pred, target):
-    mae = F.l1_loss(pred.squeeze(), target).item()  # Mean Absolute Error
-    mse = F.mse_loss(pred.squeeze(), target).item()  # Mean Squared Error
+    mae = F.l1_loss(pred, target).item()  # Mean Absolute Error
+    mse = F.mse_loss(pred, target).item()  # Mean Squared Error
     # Root Mean Squared Error
-    rmse = torch.sqrt(F.mse_loss(pred.squeeze(), target)).item()
+    rmse = torch.sqrt(F.mse_loss(pred, target)).item()
     return {"MAE": mae, "MSE": mse, "RMSE": rmse}
 
 # Функция для взвешенной потери
@@ -40,7 +40,7 @@ def epoch(model, loader, optimizer, criterion, device, train=True):
         if train:
             optimizer.zero_grad()
         edge_pred = model(data.x, data.edge_index, data.edge_attr)
-        loss = criterion(edge_pred.squeeze(), data.edge_label)
+        loss = criterion(edge_pred, data.edge_label)
         total_loss += loss.item()
         all_preds.append(edge_pred.cpu())
         all_targets.append(data.edge_label.cpu())

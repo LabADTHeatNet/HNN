@@ -30,12 +30,13 @@ def process_pair(nodes_path, tubes_path, node_attr, edge_attr, edge_label):
     edge_attrs = torch.tensor(tubes_df[edge_attr].values, dtype=torch.float)
 
     # Извлекаем edge labels (edge_label)
-    edge_labels = torch.tensor(
-        tubes_df[edge_label].values, dtype=torch.float)
+    edge_labels = torch.tensor(tubes_df[edge_label].values, dtype=torch.float)
 
     # Создаем объект Data
-    data = Data(x=x, edge_index=edge_index,
-                edge_attr=edge_attrs, edge_label=edge_labels)
+    data = Data(x=x,
+                edge_index=edge_index,
+                edge_attr=edge_attrs,
+                edge_label=edge_labels)
     return data
 
 

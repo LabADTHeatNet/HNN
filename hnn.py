@@ -40,7 +40,7 @@ if __name__ == '__main__':
         # Пример: укажите ваши атрибуты рёбер
         edge_attr=['dP'],
         # Имя колонки, используемой для edge_label
-        edge_label='d',
+        edge_label=['d'],
     )
 
     dataloader = dict(
