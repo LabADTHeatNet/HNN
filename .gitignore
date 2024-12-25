@@ -3,3 +3,6 @@
 __pycache__/
 *.pyc
 /datasets/
+/out/
+/out_straight/
+/out_Yasn_Q/

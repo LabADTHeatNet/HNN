@@ -39,7 +39,7 @@ def epoch(model, loader, optimizer, criterion, device, train=True):
         data = data.to(device)
         if train:
             optimizer.zero_grad()
-        edge_pred = model(data.x, data.edge_index, data.edge_attr)
+        edge_pred = model(data)
         loss = criterion(edge_pred, data.edge_label)
         total_loss += loss.item()
         all_preds.append(edge_pred.cpu())

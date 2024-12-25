@@ -8,63 +8,82 @@ from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 from torch.utils.data import random_split
 
+import tqdm
 
-def process_pair(nodes_path, tubes_path, node_attr, edge_attr, edge_label):
+
+def process_pair(nodes_path, edges_path, node_attr, edge_attr, edge_label):
     """
     Создает граф PyG из пары файлов nodes и tubes.
     """
     # Загружаем файлы
     nodes_df = pd.read_csv(nodes_path, sep='\t')
-    tubes_df = pd.read_csv(tubes_path, sep='\t')
+    edges_df = pd.read_csv(edges_path, sep='\t')
+
+    # Fix: missing node id 129
+    edges_df = edges_df[edges_df.id_in != 129]
+    edges_df = edges_df[edges_df.id_out != 129]
+    nodes_df = nodes_df[nodes_df.id != 129]
+    nodes_df.loc[nodes_df['id'] >= 129, 'id'] -= 1
+    edges_df.loc[edges_df['id_in'] >= 129, 'id_in'] -= 1
+    edges_df.loc[edges_df['id_out'] >= 129, 'id_out'] -= 1
 
     # Извлекаем node attributes (x)
     x = torch.tensor(nodes_df[node_attr].values, dtype=torch.float)
 
     # Строим edge_index (индексы рёбер)
     edge_index = torch.tensor(
-        np.array([tubes_df['id_in'].values, tubes_df['id_out'].values]),
+        np.array([edges_df['id_in'].values, edges_df['id_out'].values]),
         dtype=torch.long
     )
 
     # Извлекаем edge attributes (edge_attr)
-    edge_attrs = torch.tensor(tubes_df[edge_attr].values, dtype=torch.float)
+    edge_attrs = torch.tensor(edges_df[edge_attr].values, dtype=torch.float)
 
     # Извлекаем edge labels (edge_label)
-    edge_labels = torch.tensor(tubes_df[edge_label].values, dtype=torch.float)
+    edge_labels = torch.tensor(edges_df[edge_label].values, dtype=torch.float)
+
+    edge_moded_list = torch.tensor(edges_df['moded'].values, dtype=torch.float)
 
     # Создаем объект Data
     data = Data(x=x,
                 edge_index=edge_index,
                 edge_attr=edge_attrs,
-                edge_label=edge_labels)
+                edge_label=edge_labels,
+                edge_moded=edge_moded_list,
+                nodes_fp=nodes_path,
+                edges_fp=edges_path,)
     return data
 
 
-def create_dataset(root_dir, node_attr, edge_attr, edge_label):
+def create_dataset(root_dir, node_attr, edge_attr, edge_label, num_samples=None):
     """
     Создает список графов PyG из вложенных папок.
-    """
-    dataset = []
+    """   
+    files_list = list()
     for subdir, _, files in os.walk(root_dir):
         # Находим все файлы с nodes и tubes
         nodes_files = [f for f in files if 'nodes' in f]
-        tubes_files = [f for f in files if 'tubes' in f]
+        edges_files = [f for f in files if 'tubes' in f]
 
         # Сопоставляем пары nodes и tubes
         for nodes_file in nodes_files:
             if '-checkpoint' not in nodes_file:
-                prefix = nodes_file.split('nodes')[0]  # Общий префикс до "nodes"
-                tubes_file = next(
-                    (f for f in tubes_files if f.startswith(prefix)), None)
-                if tubes_file:
+                # Общий префикс до "nodes"
+                prefix = nodes_file.split('nodes')[0]
+                edges_file = next(
+                    (f for f in edges_files if f.startswith(prefix)), None)
+                if edges_file:
                     nodes_path = os.path.join(subdir, nodes_file)
-                    tubes_path = os.path.join(subdir, tubes_file)
-                    try:
-                        data = process_pair(nodes_path, tubes_path, node_attr, edge_attr, edge_label)
-                        dataset.append(data)
-                    except Exception as e:
-                        print(f"Ошибка обработки пары {
-                            nodes_path}, {tubes_path}: {e}")
+                    edges_path = os.path.join(subdir, edges_file)
+                    files_list.append([nodes_path, edges_path])
+
+    dataset = []
+    for nodes_path, edges_path in tqdm.tqdm(files_list[:num_samples]):
+        try:
+            data = process_pair(nodes_path, edges_path, node_attr, edge_attr, edge_label)
+            dataset.append(data)
+        except Exception as e:
+            print(f"Ошибка обработки пары {nodes_path}, {edges_path}: {e}")
     return dataset
 
 
@@ -108,7 +127,8 @@ def prepare_data(dataset_config, dataloader_config, seed):
         dataset = create_dataset(str(dataset_path),
                                  dataset_config['node_attr'],
                                  dataset_config['edge_attr'],
-                                 dataset_config['edge_label'])
+                                 dataset_config['edge_label'],
+                                 num_samples=dataset_config['num_samples'])
         torch.save(dataset, dataset_config['fp'])
         print(f'Датасет сохранен в файл: {dataset_config['fp']}')
 

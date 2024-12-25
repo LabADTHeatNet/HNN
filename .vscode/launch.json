@@ -5,10 +5,17 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "hnn.py",
+            "name": "train.py",
             "type": "debugpy",
             "request": "launch",
-            "program": "hnn.py",
+            "program": "train.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "test.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test.py",
             "console": "integratedTerminal"
         }
     ]
