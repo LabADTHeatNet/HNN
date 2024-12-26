@@ -29,7 +29,7 @@ utils = dict(
 dataset = dict(
     datasets_dir=osp.join(root_dir, 'datasets'),
     name='database_Yasn_Q',
-    load=False,
+    load=True,
     fp='pyg_dataset_Yasn_Q.pt',
     # Пример: другие атрибуты добавьте сюда
     node_attr=['pos_x', 'pos_y', 'P', 'types'],
@@ -74,7 +74,7 @@ train = dict(
 
 # %% experiment
 if __name__ == '__main__':
-    debug_run = True
+    debug_run = False
     run_clear_ml = True
 
     model_list = list()
@@ -195,7 +195,7 @@ if __name__ == '__main__':
                 train=train
             )
 
-            cfg['dataloader']['batch_size'] = model_main_params
+            cfg['dataloader']['batch_size'] = batch_size
 
             if debug_run:
                 run_clear_ml = False

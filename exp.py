@@ -58,7 +58,7 @@ def exp(cfg, project_name='HeatNet', run_clear_ml=False, log_dir=None):
     # Инициализация модели, оптимизатора и функции потерь
 
     model_fn = getattr(
-        importlib.import_module(f'src.models.{cfg['model']['name']}'),
+        importlib.import_module(f"src.models.{cfg['model']['name']}"),
         cfg['model']['name'])
 
     def create_model():
