@@ -187,7 +187,7 @@ def test_exp(exp_dir_path, out_dir_path):
     # Инициализация модели, оптимизатора и функции потерь
 
     model_fn = getattr(
-        importlib.import_module(f'src.models.{cfg['model']['name']}'),
+        importlib.import_module(f"src.models.{cfg['model']['name']}"),
         cfg['model']['name'])
 
     def create_model():
