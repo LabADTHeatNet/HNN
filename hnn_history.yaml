@@ -1,0 +1,17 @@
+name: hnn
+channels:
+  - defaults
+dependencies:
+  - dill
+  - geopandas
+  - ipykernel
+  - matplotlib
+  - numpy
+  - pandas
+  - pyg
+  - pytorch
+  - pytorch-cuda=12.1
+  - scikit-learn
+  - tqdm
+  - pytorch-scatter
+  - torch-scatter

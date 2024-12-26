@@ -101,12 +101,12 @@ def draw_data(data,
     moded_idx_list = np.where(edge_moded != 0)[0].tolist()
     moded_idx_list.sort()
     pred_moded_idx_list = list()
-    if 'edge_label_pred' in data.keys():
-        pred_moded_idx_list = np.where(data.edge_label_pred != 0)[0].tolist()
-        pred_moded_idx_list.sort()
-        for moded_idx in pred_moded_idx_list:
-            moded_in_out = edge_index[..., moded_idx].squeeze()
-            log_str_list.append(f'Pred moded: {moded_idx}, {moded_in_out}')
+    # if 'edge_label_pred' in data.keys():
+    #     pred_moded_idx_list = np.where(data.edge_label_pred != 0)[0].tolist()
+    #     pred_moded_idx_list.sort()
+    #     for moded_idx in pred_moded_idx_list:
+    #         moded_in_out = edge_index[..., moded_idx].squeeze()
+    #         log_str_list.append(f'Pred moded: {moded_idx}, {moded_in_out}')
 
     for moded_idx in moded_idx_list:
         moded_in_out = edge_index[..., moded_idx].squeeze()
@@ -118,8 +118,8 @@ def draw_data(data,
         log_str_list.append(f'moded: edge {moded_idx}, type = {
                             edge_moded[moded_idx]}, nodes {moded_in_out}')
 
-        if moded_idx in pred_moded_idx_list:
-            color = 'green'
+        # if moded_idx in pred_moded_idx_list:
+        #     color = 'green'
         edge_color[moded_idx] = color
 
     # del modded edge from colormap

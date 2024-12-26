@@ -2,73 +2,30 @@ import os
 import os.path as osp
 import pandas as pd
 import numpy as np
-import torch
-from torch_geometric.data import Data
+import random
 
-from torch_geometric.loader import DataLoader
+import torch
 from torch.utils.data import random_split
+
+from torch_geometric.data import Data
+from torch_geometric.loader import DataLoader
+
+from sklearn.preprocessing import MinMaxScaler
 
 import tqdm
 
 
-def process_pair(nodes_path, edges_path, node_attr, edge_attr, edge_label):
+def find_file_pairs(root_dir):
     """
-    Создает граф PyG из пары файлов nodes и tubes.
+    Находит пары файлов nodes и edges в директории.
     """
-    # Загружаем файлы
-    nodes_df = pd.read_csv(nodes_path, sep='\t')
-    edges_df = pd.read_csv(edges_path, sep='\t')
-
-    # Fix: missing node id 129
-    edges_df = edges_df[edges_df.id_in != 129]
-    edges_df = edges_df[edges_df.id_out != 129]
-    nodes_df = nodes_df[nodes_df.id != 129]
-    nodes_df.loc[nodes_df['id'] >= 129, 'id'] -= 1
-    edges_df.loc[edges_df['id_in'] >= 129, 'id_in'] -= 1
-    edges_df.loc[edges_df['id_out'] >= 129, 'id_out'] -= 1
-
-    # Извлекаем node attributes (x)
-    x = torch.tensor(nodes_df[node_attr].values, dtype=torch.float)
-
-    # Строим edge_index (индексы рёбер)
-    edge_index = torch.tensor(
-        np.array([edges_df['id_in'].values, edges_df['id_out'].values]),
-        dtype=torch.long
-    )
-
-    # Извлекаем edge attributes (edge_attr)
-    edge_attrs = torch.tensor(edges_df[edge_attr].values, dtype=torch.float)
-
-    # Извлекаем edge labels (edge_label)
-    edge_labels = torch.tensor(edges_df[edge_label].values, dtype=torch.float)
-
-    edge_moded_list = torch.tensor(edges_df['moded'].values, dtype=torch.float)
-
-    # Создаем объект Data
-    data = Data(x=x,
-                edge_index=edge_index,
-                edge_attr=edge_attrs,
-                edge_label=edge_labels,
-                edge_moded=edge_moded_list,
-                nodes_fp=nodes_path,
-                edges_fp=edges_path,)
-    return data
-
-
-def create_dataset(root_dir, node_attr, edge_attr, edge_label, num_samples=None):
-    """
-    Создает список графов PyG из вложенных папок.
-    """   
-    files_list = list()
+    files_list = []
     for subdir, _, files in os.walk(root_dir):
-        # Находим все файлы с nodes и tubes
         nodes_files = [f for f in files if 'nodes' in f]
         edges_files = [f for f in files if 'tubes' in f]
 
-        # Сопоставляем пары nodes и tubes
         for nodes_file in nodes_files:
             if '-checkpoint' not in nodes_file:
-                # Общий префикс до "nodes"
                 prefix = nodes_file.split('nodes')[0]
                 edges_file = next(
                     (f for f in edges_files if f.startswith(prefix)), None)
@@ -76,15 +33,155 @@ def create_dataset(root_dir, node_attr, edge_attr, edge_label, num_samples=None)
                     nodes_path = os.path.join(subdir, nodes_file)
                     edges_path = os.path.join(subdir, edges_file)
                     files_list.append([nodes_path, edges_path])
+    return files_list
 
+
+def load_dataframes(files_list):
+    """
+    Считывает таблицы узлов и рёбер из списка файлов.
+    """
+    nodes_dataframes = []
+    edges_dataframes = []
+
+    for nodes_path, edges_path in tqdm.tqdm(files_list):
+        nodes_df = pd.read_csv(nodes_path, sep='\t')
+        edges_df = pd.read_csv(edges_path, sep='\t')
+
+        # Fix: missing node id 129
+        edges_df = edges_df[edges_df.id_in != 129]
+        edges_df = edges_df[edges_df.id_out != 129]
+        nodes_df = nodes_df[nodes_df.id != 129]
+        nodes_df.loc[nodes_df['id'] >= 129, 'id'] -= 1
+        edges_df.loc[edges_df['id_in'] >= 129, 'id_in'] -= 1
+        edges_df.loc[edges_df['id_out'] >= 129, 'id_out'] -= 1
+
+        nodes_dataframes.append(nodes_df)
+        edges_dataframes.append(edges_df)
+
+    return nodes_dataframes, edges_dataframes
+
+
+def fit_global_scalers(nodes_dataframes, edges_dataframes,
+                       node_attr, edge_attr, edge_label):
+    """
+    Обучает глобальные скейлеры для узлов и рёбер.
+    """
+    node_attr_scaler = MinMaxScaler()
+    edge_attr_scaler = MinMaxScaler()
+    edge_label_scaler = MinMaxScaler()
+
+    # Объединяем все данные в один DataFrame
+    all_node_attr_data = pd.concat([df[node_attr] for df in nodes_dataframes], ignore_index=True)
+    all_edge_attr_data = pd.concat([df[edge_attr] for df in edges_dataframes], ignore_index=True)
+    all_edge_label_data = pd.concat([df[edge_label] for df in edges_dataframes], ignore_index=True)
+
+    node_attr_scaler.fit(all_node_attr_data)
+    edge_attr_scaler.fit(all_edge_attr_data)
+    edge_label_scaler.fit(all_edge_label_data)
+
+    scalers = dict(node_attr_scaler=node_attr_scaler,
+                   edge_attr_scaler=edge_attr_scaler,
+                   edge_label_scaler=edge_label_scaler)
+    return scalers
+
+
+def normalize_dataframes(nodes_dataframes, edges_dataframes,
+                         node_attr, edge_attr, edge_label,
+                         scalers, edge_label_pred=None):
+    """
+    Нормализует все таблицы узлов и рёбер с использованием глобальных скейлеров.
+    """
+    for nodes_df, edges_df in tqdm.tqdm(zip(nodes_dataframes, edges_dataframes), total=len(nodes_dataframes)):
+        nodes_df[node_attr] = scalers['node_attr_scaler'].transform(nodes_df[node_attr])
+        edges_df[edge_attr] = scalers['edge_attr_scaler'].transform(edges_df[edge_attr])
+        edges_df[edge_label] = scalers['edge_label_scaler'].transform(edges_df[edge_label])
+        if edge_label_pred is not None:
+            edges_df[edge_label_pred] = scalers['edge_label_scaler'].transform(edges_df[edge_label_pred])
+
+    return nodes_dataframes, edges_dataframes
+
+
+def denormalize_dataframes(nodes_dataframes, edges_dataframes,
+                           node_attr, edge_attr, edge_label,
+                           scalers, edge_label_pred=None):
+    """
+    Нормализует все таблицы узлов и рёбер с использованием глобальных скейлеров.
+    """
+    for nodes_df, edges_df in tqdm.tqdm(zip(nodes_dataframes, edges_dataframes), total=len(nodes_dataframes)):
+        nodes_df[node_attr] = scalers['node_attr_scaler'].inverse_transform(nodes_df[node_attr])
+        edges_df[edge_attr] = scalers['edge_attr_scaler'].inverse_transform(edges_df[edge_attr])
+        edges_df[edge_label] = scalers['edge_label_scaler'].inverse_transform(edges_df[edge_label])
+        if edge_label_pred is not None:
+            edges_df[edge_label_pred] = scalers['edge_label_scaler'].inverse_transform(edges_df[edge_label_pred])
+
+    return nodes_dataframes, edges_dataframes
+
+
+def process_dataframes(nodes_df, edges_df,
+                       node_attr, edge_attr, edge_label,
+                       nodes_fp, edges_fp):
+    """
+    Конвертирует таблицы узлов и рёбер в объект PyG Data.
+    """
+    # Извлекаем node attributes (x)
+    x = torch.tensor(nodes_df[node_attr].values, dtype=torch.float)
+
+    # Строим edge_index (индексы рёбер)
+    t_edge_index = torch.tensor(np.array([edges_df['id_in'].values, edges_df['id_out'].values]), dtype=torch.long)
+
+    # Извлекаем edge attributes (edge_attr)
+    t_edge_attr = torch.tensor(edges_df[edge_attr].values, dtype=torch.float)
+
+    # Извлекаем edge labels (edge_label)
+    t_edge_label = torch.tensor(edges_df[edge_label].values, dtype=torch.float)
+
+    t_edge_moded = torch.tensor(edges_df[['moded']].values, dtype=torch.float)
+
+    # Создаем объект Data
+    data = Data(x=x,
+                edge_index=t_edge_index,
+                edge_attr=t_edge_attr,
+                edge_label=t_edge_label,
+                edge_moded=t_edge_moded,
+                nodes_fp=nodes_fp,
+                edges_fp=edges_fp)
+    return data
+
+
+def create_dataset(root_dir, node_attr, edge_attr, edge_label, num_samples=None, seed=42):
+    """
+    Создает список графов PyG из вложенных папок.
+    """
+    print("Поиск пар файлов...")
+    files_list = find_file_pairs(root_dir)
+    print(f"Найдено {len(files_list)} пар файлов.")
+    
+    random.Random(seed).shuffle(files_list)
+    files_list = files_list[:num_samples]
+
+    print("Считывание таблиц...")
+    nodes_dataframes, edges_dataframes = load_dataframes(files_list)
+
+    print("Обучение глобальных скейлеров...")
+    scalers = fit_global_scalers(nodes_dataframes, edges_dataframes,
+                                 node_attr, edge_attr, edge_label)
+    print("Скейлеры обучены.")
+
+    print("Нормализация таблиц...")
+    nodes_dataframes, edges_dataframes = normalize_dataframes(nodes_dataframes, edges_dataframes,
+                                                              node_attr, edge_attr, edge_label,
+                                                              scalers)
+
+    print("Конвертация в PyG Data...")
     dataset = []
-    for nodes_path, edges_path in tqdm.tqdm(files_list[:num_samples]):
+    for nodes_df, edges_df, (nodes_fp, edges_fp) in tqdm.tqdm(zip(nodes_dataframes, edges_dataframes, files_list), total=len(nodes_dataframes)):
         try:
-            data = process_pair(nodes_path, edges_path, node_attr, edge_attr, edge_label)
+            data = process_dataframes(nodes_df, edges_df, node_attr, edge_attr, edge_label, nodes_fp, edges_fp)
             dataset.append(data)
         except Exception as e:
-            print(f"Ошибка обработки пары {nodes_path}, {edges_path}: {e}")
-    return dataset
+            print(f"Ошибка обработки: {e}")
+
+    return dataset, scalers
 
 
 def split_dataset(dataset, train_ratio, val_ratio, seed=42):
@@ -115,33 +212,65 @@ def create_dataloaders(train_dataset, val_dataset, test_dataset, batch_size=16):
     return train_loader, val_loader, test_loader
 
 
-def prepare_data(dataset_config, dataloader_config, seed):
+def prepare_data(dataset_config, dataloader_config, seed=42):
     # Создаем датасет
     if dataset_config['load']:
         # Загружаем датасет из файла
-        dataset = torch.load(dataset_config['fp'])
-        print(f'Датасет загружен из файла: {dataset_config['fp']}')
+        dataset_dict = torch.load(dataset_config['fp'])
+        dataset = dataset_dict['dataset']
+        scalers = dataset_dict['scalers']
+        print(f"Датасет загружен из файла: {dataset_config['fp']}")
     else:
         print("Создание датасета...")
-        dataset_path = osp.join(dataset_config['datasets_dir'], dataset_config['name'])
-        dataset = create_dataset(str(dataset_path),
-                                 dataset_config['node_attr'],
-                                 dataset_config['edge_attr'],
-                                 dataset_config['edge_label'],
-                                 num_samples=dataset_config['num_samples'])
-        torch.save(dataset, dataset_config['fp'])
-        print(f'Датасет сохранен в файл: {dataset_config['fp']}')
+        dataset_path = osp.join(
+            dataset_config['datasets_dir'], dataset_config['name'])
+        dataset, scalers = create_dataset(str(dataset_path),
+                                          dataset_config['node_attr'],
+                                          dataset_config['edge_attr'],
+                                          dataset_config['edge_label'],
+                                          num_samples=dataset_config['num_samples'],
+                                          seed=seed)
+        torch.save(dict(dataset=dataset, scalers=scalers), dataset_config['fp'])
+        print(f"Датасет сохранен в файл: {dataset_config['fp']}")
 
     print(f"Готово! Количество графов: {len(dataset)}")
 
     # Разделяем датасет
     train_dataset, val_dataset, test_dataset = split_dataset(
         dataset, dataloader_config['train_ratio'], dataloader_config['val_ratio'], seed=seed)
-    print(f'Train графов: {len(train_dataset)}, Val графов: {
-          len(val_dataset)}, Test графов: {len(test_dataset)}')
+    print(f"Train графов: {len(train_dataset)}, Val графов: {
+          len(val_dataset)}, Test графов: {len(test_dataset)}")
 
     # Создаем DataLoader'ы
     train_loader, val_loader, test_loader = create_dataloaders(
         train_dataset, val_dataset, test_dataset, dataloader_config['batch_size'])
 
-    return dataset, train_loader, val_loader, test_loader
+    return dataset, scalers, train_loader, val_loader, test_loader
+
+
+def data_to_tables(data,
+                   node_attr, edge_attr, edge_label,
+                   scalers=None, edge_label_pred=None):
+    """
+    Преобразует объект Data обратно в таблицы узлов и рёбер с возможностью денормализации.
+    """
+    nodes_df = pd.DataFrame(data.x.numpy(), columns=node_attr)
+    nodes_df['id'] = range(len(nodes_df))
+
+    edge_index = data.edge_index.numpy()
+    edges_df = pd.DataFrame({
+        'id_in': edge_index[0],
+        'id_out': edge_index[1]
+    })
+    for i, col_name in enumerate(edge_attr):
+        edges_df[col_name] = data.edge_attr[:, i].numpy()
+
+    edges_df[edge_label] = data.edge_label.numpy()
+
+    # Если переданы скейлеры, выполняем денормализацию
+    if scalers:
+        nodes_df, edges_df = denormalize_dataframes(nodes_df, edges_df,
+                                                    node_attr, edge_attr, edge_label,
+                                                    scalers, edge_label_pred=edge_label_pred)
+
+    return nodes_df, edges_df

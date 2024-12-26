@@ -42,7 +42,7 @@ def exp(cfg, project_name='HeatNet', run_clear_ml=False, log_dir=None):
 
     device = torch.device(cfg['utils']['device'])
 
-    dataset, train_loader, val_loader, test_loader = prepare_data(
+    dataset, scalers, train_loader, val_loader, test_loader = prepare_data(
         cfg['dataset'], cfg['dataloader'], cfg['utils']['seed'])
 
     # Пример вывода батча
@@ -54,7 +54,7 @@ def exp(cfg, project_name='HeatNet', run_clear_ml=False, log_dir=None):
     # Параметры модели
     in_node_dim = dataset[0].x.shape[1]
     in_edge_dim = dataset[0].edge_attr.shape[1]
-    out_dim = 1  # Регрессия: одно значение для edge_label
+    out_dim = dataset[0].edge_label.shape[1]  # Регрессия: одно значение для edge_label
     # Инициализация модели, оптимизатора и функции потерь
 
     model_fn = getattr(
@@ -164,14 +164,14 @@ def test_exp(exp_dir_path, out_dir_path):
     with open(exp_dir_path / 'params.json', 'r') as f:
         cfg = json.load(f)
 
-    # cfg['dataset']['load'] = True
-    cfg['dataset']['load'] = False
-    cfg['dataset']['num_samples'] = None
-    cfg['dataset']['fp'] = 'pyg_dataset_Yasn_Q_fp.pt'
+    cfg['dataset']['load'] = True
+    # cfg['dataset']['load'] = False
+    # cfg['dataset']['num_samples'] = None
+    # cfg['dataset']['fp'] = 'pyg_dataset_Yasn_Q_fp.pt'
 
     device = torch.device(cfg['utils']['device'])
 
-    dataset, train_loader, val_loader, test_loader = prepare_data(
+    dataset, scalers, train_loader, val_loader, test_loader = prepare_data(
         cfg['dataset'], cfg['dataloader'], cfg['utils']['seed'])
 
     # Пример вывода батча

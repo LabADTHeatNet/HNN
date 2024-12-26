@@ -43,7 +43,7 @@ dataset = dict(
 dataloader = dict(
     train_ratio=0.7,  # 70% - обучающая выборка
     val_ratio=0.15,   # 15% - валидационная выборка
-    batch_size=8,
+    batch_size=32,
 )
 
 optimizer = dict(
@@ -68,14 +68,14 @@ criterion = dict(
 )
 
 train = dict(
-    num_epochs=1000,
+    num_epochs=500,
     score_metric='MSE'
 )
 
 # %% experiment
 if __name__ == '__main__':
-    test = False
-    run_clear_ml = False
+    debug_run = True
+    run_clear_ml = True
 
     model_list = list()
 
@@ -180,31 +180,35 @@ if __name__ == '__main__':
         f"{model['kwargs']['node_conv_layer_kwargs']['aggr']}",
     ]
     model_list.append([model, model_main_params])
+    batch_size_list = [128, 64, 32, 8]
 
     for model, model_main_params in model_list:
-        cfg = dict(
-            utils=utils,
-            dataset=dataset,
-            dataloader=dataloader,
-            model=model,
-            optimizer=optimizer,
-            scheduler=scheduler,
-            criterion=criterion,
-            train=train
-        )
+        for batch_size in batch_size_list:
+            cfg = dict(
+                utils=utils,
+                dataset=dataset,
+                dataloader=dataloader,
+                model=model,
+                optimizer=optimizer,
+                scheduler=scheduler,
+                criterion=criterion,
+                train=train
+            )
 
-        if test:
-            run_clear_ml = False
-            cfg['train']['num_epochs'] = 10
-            cfg['dataloader']['batch_size'] = 32
-            cfg['utils']['out_dir'] += '_test'
+            cfg['dataloader']['batch_size'] = model_main_params
 
-        ts = get_str_timestamp()
+            if debug_run:
+                run_clear_ml = False
+                cfg['utils']['out_dir'] += '_test'
+                cfg['dataset']['num_samples'] = 1000
+                cfg['train']['num_epochs'] = 10
 
-        model_main_params.append(ts)
-        exp_name = '_'.join(model_main_params)
-        log_dir = osp.join(cfg['utils']['out_dir'], exp_name)
-        exp(cfg,
-            project_name='HeatNet',
-            run_clear_ml=run_clear_ml,
-            log_dir=log_dir)
+            ts = get_str_timestamp()
+
+            model_main_params.append(ts)
+            exp_name = '_'.join(model_main_params)
+            log_dir = osp.join(cfg['utils']['out_dir'], exp_name)
+            exp(cfg,
+                project_name='HeatNet',
+                run_clear_ml=run_clear_ml,
+                log_dir=log_dir)
