@@ -1,4 +1,5 @@
 # %% imports and main parameters
+import copy
 import os.path as osp
 import torch
 
@@ -180,7 +181,7 @@ if __name__ == '__main__':
         f"{model['kwargs']['node_conv_layer_kwargs']['aggr']}",
     ]
     model_list.append([model, model_main_params])
-    batch_size_list = [128, 64, 32, 8]
+    batch_size_list = [1024, 512, 256, 128]
 
     for model, model_main_params in model_list:
         for batch_size in batch_size_list:
@@ -204,9 +205,10 @@ if __name__ == '__main__':
                 cfg['train']['num_epochs'] = 10
 
             ts = get_str_timestamp()
-
-            model_main_params.append(ts)
-            exp_name = '_'.join(model_main_params)
+            model_main_params_cur = copy.copy(model_main_params)
+            model_main_params_cur.append(f"bs{cfg['dataloader']['batch_size']}")
+            model_main_params_cur.append(ts)
+            exp_name = '_'.join(model_main_params_cur)
             log_dir = osp.join(cfg['utils']['out_dir'], exp_name)
             exp(cfg,
                 project_name='HeatNet',
