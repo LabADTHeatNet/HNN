@@ -10,7 +10,7 @@ from torch.utils.data import random_split
 from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 
-from sklearn.preprocessing import MinMaxScaler
+import sklearn.preprocessing
 
 import tqdm
 
@@ -22,16 +22,13 @@ def find_file_pairs(root_dir):
     files_list = []
     for subdir, _, files in os.walk(root_dir):
         nodes_files = [f for f in files if 'nodes' in f]
-        edges_files = [f for f in files if 'tubes' in f]
 
         for nodes_file in nodes_files:
             if '-checkpoint' not in nodes_file:
-                prefix = nodes_file.split('nodes')[0]
-                edges_file = next(
-                    (f for f in edges_files if f.startswith(prefix)), None)
-                if edges_file:
-                    nodes_path = os.path.join(subdir, nodes_file)
-                    edges_path = os.path.join(subdir, edges_file)
+                edges_file = nodes_file.replace('nodes', 'tubes')
+                nodes_path = os.path.join(subdir, nodes_file)
+                edges_path = os.path.join(subdir, edges_file)
+                if os.path.exists(nodes_path) and os.path.exists(edges_path):
                     files_list.append([nodes_path, edges_path])
     return files_list
 
@@ -66,9 +63,10 @@ def fit_global_scalers(nodes_dataframes, edges_dataframes,
     """
     Обучает глобальные скейлеры для узлов и рёбер.
     """
-    node_attr_scaler = MinMaxScaler()
-    edge_attr_scaler = MinMaxScaler()
-    edge_label_scaler = MinMaxScaler()
+    scaler_fn = sklearn.preprocessing.RobustScaler
+    node_attr_scaler = scaler_fn()
+    edge_attr_scaler = scaler_fn()
+    edge_label_scaler = scaler_fn()
 
     # Объединяем все данные в один DataFrame
     all_node_attr_data = pd.concat([df[node_attr] for df in nodes_dataframes], ignore_index=True)
@@ -107,7 +105,7 @@ def denormalize_dataframes(nodes_dataframes, edges_dataframes,
     """
     Нормализует все таблицы узлов и рёбер с использованием глобальных скейлеров.
     """
-    for nodes_df, edges_df in tqdm.tqdm(zip(nodes_dataframes, edges_dataframes), total=len(nodes_dataframes)):
+    for nodes_df, edges_df in zip(nodes_dataframes, edges_dataframes):
         nodes_df[node_attr] = scalers['node_attr_scaler'].inverse_transform(nodes_df[node_attr])
         edges_df[edge_attr] = scalers['edge_attr_scaler'].inverse_transform(edges_df[edge_attr])
         edges_df[edge_label] = scalers['edge_label_scaler'].inverse_transform(edges_df[edge_label])
@@ -248,12 +246,13 @@ def prepare_data(dataset_config, dataloader_config, seed=42):
     return dataset, scalers, train_loader, val_loader, test_loader
 
 
-def data_to_tables(data,
+def data_to_tables(in_data,
                    node_attr, edge_attr, edge_label,
                    scalers=None, edge_label_pred=None):
     """
     Преобразует объект Data обратно в таблицы узлов и рёбер с возможностью денормализации.
     """
+    data = in_data.cpu()
     nodes_df = pd.DataFrame(data.x.numpy(), columns=node_attr)
     nodes_df['id'] = range(len(nodes_df))
 
@@ -266,11 +265,16 @@ def data_to_tables(data,
         edges_df[col_name] = data.edge_attr[:, i].numpy()
 
     edges_df[edge_label] = data.edge_label.numpy()
+    
+    if edge_label_pred is not None:
+        edges_df[edge_label_pred] = data.edge_label_pred.numpy()
 
     # Если переданы скейлеры, выполняем денормализацию
     if scalers:
-        nodes_df, edges_df = denormalize_dataframes(nodes_df, edges_df,
+        nodes_df, edges_df = denormalize_dataframes([nodes_df], [edges_df],
                                                     node_attr, edge_attr, edge_label,
                                                     scalers, edge_label_pred=edge_label_pred)
+        nodes_df = nodes_df[0]
+        edges_df = edges_df[0]
 
     return nodes_df, edges_df

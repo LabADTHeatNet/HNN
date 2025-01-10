@@ -21,4 +21,4 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 exp_dir_path = 'out_Yasn_Q/ParametricGCN_GlobalPool_SAGEConv_mean_20241224_152937'
 out_dir_path = osp.join(exp_dir_path, 'results')
-test_exp(exp_dir_path, out_dir_path)
+test_exp(exp_dir_path, out_dir_path, num_samples_to_draw=0)

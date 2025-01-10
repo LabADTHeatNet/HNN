@@ -14,12 +14,20 @@ def get_str_timestamp(timestamp=None):
 
 
 # Функции для метрик
-def compute_metrics(pred, target):
+def compute_metrics(pred, target, scaler=None):
     mae = F.l1_loss(pred, target).item()  # Mean Absolute Error
     mse = F.mse_loss(pred, target).item()  # Mean Squared Error
     # Root Mean Squared Error
-    rmse = torch.sqrt(F.mse_loss(pred, target)).item()
-    return {"MAE": mae, "MSE": mse, "RMSE": rmse}
+    # rmse = torch.sqrt(F.mse_loss(pred, target)).item()
+    
+    ret = {"MAE": mae, "MSE": mse}
+    # ret = {"MAE": mae, "MSE": mse, "RMSE": rmse}
+    if scaler is not None:
+        real_pred = torch.Tensor(scaler.inverse_transform(pred.detach().numpy()))
+        real_target = torch.Tensor(scaler.inverse_transform(target.detach().numpy()))
+        real_mse = F.mse_loss(real_pred, real_target).item()
+        ret["real_MSE"] = real_mse
+    return ret
 
 # Функция для взвешенной потери
 
@@ -32,7 +40,7 @@ def weighted_mse_loss(pred, target, weight):
 # Функция обучения
 
 
-def epoch(model, loader, optimizer, criterion, device, train=True):
+def epoch(model, loader, optimizer, criterion, device, train=True, scaler=None):
     total_loss = 0
     all_preds, all_targets = [], []
     for data in loader:
@@ -53,18 +61,18 @@ def epoch(model, loader, optimizer, criterion, device, train=True):
     all_targets = torch.cat(all_targets, dim=0)
 
     metrics = dict(Loss=total_loss / len(loader))
-    metrics.update(compute_metrics(all_preds, all_targets))
+    metrics.update(compute_metrics(all_preds, all_targets, scaler=scaler))
     return metrics
 
 # Функция валидации и тестирования
 
 
-def train(model, loader, optimizer, criterion, device):
+def train(model, loader, optimizer, criterion, device, scaler=None):
     model.train()
-    return epoch(model, loader, optimizer, criterion, device, train=True)
+    return epoch(model, loader, optimizer, criterion, device, train=True, scaler=scaler)
 
 
 @torch.no_grad()
-def valid(model, loader, criterion, device):
+def valid(model, loader, criterion, device, scaler=None):
     model.eval()
-    return epoch(model, loader, None, criterion, device, train=False)
+    return epoch(model, loader, None, criterion, device, train=False, scaler=scaler)

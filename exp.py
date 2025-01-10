@@ -17,7 +17,8 @@ from clearml import (
 import matplotlib.pyplot as plt
 
 from src.datasets import (
-    prepare_data
+    prepare_data,
+    data_to_tables
 )
 from src.utils import (
     train,
@@ -54,7 +55,8 @@ def exp(cfg, project_name='HeatNet', run_clear_ml=False, log_dir=None):
     # Параметры модели
     in_node_dim = dataset[0].x.shape[1]
     in_edge_dim = dataset[0].edge_attr.shape[1]
-    out_dim = dataset[0].edge_label.shape[1]  # Регрессия: одно значение для edge_label
+    # Регрессия: одно значение для edge_label
+    out_dim = dataset[0].edge_label.shape[1]
     # Инициализация модели, оптимизатора и функции потерь
 
     model_fn = getattr(
@@ -108,17 +110,20 @@ def exp(cfg, project_name='HeatNet', run_clear_ml=False, log_dir=None):
 
     model = model.to(device)
 
+    edge_label_scaler = scalers['edge_label_scaler']
+
     best_score = torch.inf
     with tqdm.tqdm(total=cfg['train']['num_epochs'], desc="Epochs", unit="epoch") as pbar:
         for epoch in range(0, cfg['train']['num_epochs']):
             writer.add_scalar('LR', optimizer.param_groups[0]['lr'], epoch)
 
             train_metrics = train(model, train_loader,
-                                  optimizer, criterion, device)
+                                  optimizer, criterion, device, scaler=edge_label_scaler)
             for k, v in train_metrics.items():
                 writer.add_scalar(f'{k}/train', v, epoch)
 
-            valid_metrics = valid(model, val_loader, criterion, device)
+            valid_metrics = valid(
+                model, val_loader, criterion, device, scaler=edge_label_scaler)
             for k, v in valid_metrics.items():
                 writer.add_scalar(f'{k}/val', v, epoch)
 
@@ -146,7 +151,8 @@ def exp(cfg, project_name='HeatNet', run_clear_ml=False, log_dir=None):
     model = model.to(device)
 
     # Оценка на тестовом датасете
-    test_metrics = valid(model, test_loader, criterion, device)
+    test_metrics = valid(model, test_loader, criterion,
+                         device, scaler=edge_label_scaler)
     for k, v in test_metrics.items():
         writer.add_scalar(f'{k}/test', v, 0)
     print(
@@ -157,7 +163,7 @@ def exp(cfg, project_name='HeatNet', run_clear_ml=False, log_dir=None):
         task.close()
 
 
-def test_exp(exp_dir_path, out_dir_path):
+def test_exp(exp_dir_path, out_dir_path, num_samples_to_draw=None):
     exp_dir_path = Path(exp_dir_path)
     out_dir_path = Path(out_dir_path)
 
@@ -216,8 +222,10 @@ def test_exp(exp_dir_path, out_dir_path):
     model = model.to(device)
     model.eval()
 
+    edge_label_scaler = scalers['edge_label_scaler']
     # Оценка на тестовом датасете
-    test_metrics = valid(model, test_loader, criterion, device)
+    test_metrics = valid(model, test_loader, criterion,
+                         device, scaler=edge_label_scaler)
     print(
         f"Test: {'|'.join([f'{k} {v:7.1e}' for k, v in test_metrics.items()])}")
 
@@ -256,15 +264,30 @@ def test_exp(exp_dir_path, out_dir_path):
 
     out_dir_path.mkdir(exist_ok=True)
 
-    for d in tqdm.tqdm(all_data):
-        moded_idx_list, fig, ax, log_str_list = draw_data_formated(
-            d.cpu(), pos_idxs=2)
+    for idx, d in enumerate(tqdm.tqdm(all_data)):
 
-        fp = Path(d.nodes_fp)
-        out_path = out_dir_path / fp.with_suffix('.png').name
-        fig.suptitle(fp.stem)
-        fig.savefig(out_path, bbox_inches='tight', pad_inches=0.1)
+        nodes_df, edges_df = data_to_tables(d,
+                                            node_attr=cfg['dataset']['node_attr'],
+                                            edge_attr=cfg['dataset']['edge_attr'],
+                                            edge_label=cfg['dataset']['edge_label'],
+                                            scalers=scalers,
+                                            edge_label_pred=[f'{v}_pred' for v in cfg['dataset']['edge_label']])
+        out_nodes_path = out_dir_path / \
+            Path(d.nodes_fp).with_suffix('.csv').name
+        out_edges_path = out_dir_path / \
+            Path(d.edges_fp).with_suffix('.csv').name
 
-        # plt.show()
-        plt.close(fig)
+        nodes_df.to_csv(out_nodes_path)
+        edges_df.to_csv(out_edges_path)
 
+        if idx < num_samples_to_draw:
+            moded_idx_list, fig, ax, log_str_list = draw_data_formated(
+                d.cpu(), pos_idxs=2)
+
+            fp = Path(d.nodes_fp)
+            out_fig_path = out_dir_path / fp.with_suffix('.png').name
+            fig.suptitle(fp.stem)
+            fig.savefig(out_fig_path, bbox_inches='tight', pad_inches=0.1)
+
+            # plt.show()
+            plt.close(fig)
