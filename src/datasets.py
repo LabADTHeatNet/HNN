@@ -63,7 +63,8 @@ def fit_global_scalers(nodes_dataframes, edges_dataframes,
     """
     Обучает глобальные скейлеры для узлов и рёбер.
     """
-    scaler_fn = sklearn.preprocessing.RobustScaler
+    scaler_fn = sklearn.preprocessing.MinMaxScaler
+    # scaler_fn = sklearn.preprocessing.RobustScaler
     node_attr_scaler = scaler_fn()
     edge_attr_scaler = scaler_fn()
     edge_label_scaler = scaler_fn()
