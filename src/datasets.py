@@ -1,5 +1,6 @@
 import os
 import os.path as osp
+import importlib
 import pandas as pd
 import numpy as np
 import random
@@ -9,8 +10,6 @@ from torch.utils.data import random_split
 
 from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
-
-import sklearn.preprocessing
 
 import tqdm
 
@@ -59,25 +58,29 @@ def load_dataframes(files_list):
 
 
 def fit_global_scalers(nodes_dataframes, edges_dataframes,
-                       node_attr, edge_attr, edge_label):
+                       node_attr, edge_attr, edge_label, scaler_fn=None):
     """
     Обучает глобальные скейлеры для узлов и рёбер.
     """
-    scaler_fn = sklearn.preprocessing.MinMaxScaler
-    # scaler_fn = sklearn.preprocessing.RobustScaler
-    node_attr_scaler = scaler_fn()
-    edge_attr_scaler = scaler_fn()
-    edge_label_scaler = scaler_fn()
+    if scaler_fn is not None:
+        scaler_fn = getattr(importlib.import_module(f"sklearn.preprocessing"), scaler_fn)
+        
+        node_attr_scaler = scaler_fn()
+        edge_attr_scaler = scaler_fn()
+        edge_label_scaler = scaler_fn()
 
-    # Объединяем все данные в один DataFrame
-    all_node_attr_data = pd.concat([df[node_attr] for df in nodes_dataframes], ignore_index=True)
-    all_edge_attr_data = pd.concat([df[edge_attr] for df in edges_dataframes], ignore_index=True)
-    all_edge_label_data = pd.concat([df[edge_label] for df in edges_dataframes], ignore_index=True)
+        # Объединяем все данные в один DataFrame
+        all_node_attr_data = pd.concat([df[node_attr] for df in nodes_dataframes], ignore_index=True)
+        all_edge_attr_data = pd.concat([df[edge_attr] for df in edges_dataframes], ignore_index=True)
+        all_edge_label_data = pd.concat([df[edge_label] for df in edges_dataframes], ignore_index=True)
 
-    node_attr_scaler.fit(all_node_attr_data)
-    edge_attr_scaler.fit(all_edge_attr_data)
-    edge_label_scaler.fit(all_edge_label_data)
-
+        node_attr_scaler.fit(all_node_attr_data)
+        edge_attr_scaler.fit(all_edge_attr_data)
+        edge_label_scaler.fit(all_edge_label_data)
+    else:
+        node_attr_scaler = None
+        edge_attr_scaler = None
+        edge_label_scaler = None
     scalers = dict(node_attr_scaler=node_attr_scaler,
                    edge_attr_scaler=edge_attr_scaler,
                    edge_label_scaler=edge_label_scaler)
@@ -147,7 +150,7 @@ def process_dataframes(nodes_df, edges_df,
     return data
 
 
-def create_dataset(root_dir, node_attr, edge_attr, edge_label, num_samples=None, seed=42):
+def create_dataset(root_dir, node_attr, edge_attr, edge_label, num_samples=None, seed=42, scaler_fn=None):
     """
     Создает список графов PyG из вложенных папок.
     """
@@ -163,7 +166,7 @@ def create_dataset(root_dir, node_attr, edge_attr, edge_label, num_samples=None,
 
     print("Обучение глобальных скейлеров...")
     scalers = fit_global_scalers(nodes_dataframes, edges_dataframes,
-                                 node_attr, edge_attr, edge_label)
+                                 node_attr, edge_attr, edge_label, scaler_fn=scaler_fn)
     print("Скейлеры обучены.")
 
     print("Нормализация таблиц...")
@@ -228,7 +231,8 @@ def prepare_data(dataset_config, dataloader_config, seed=42):
                                           dataset_config['edge_attr'],
                                           dataset_config['edge_label'],
                                           num_samples=dataset_config['num_samples'],
-                                          seed=seed)
+                                          seed=seed,
+                                          scaler_fn=dataset_config['scaler_fn'])
         torch.save(dict(dataset=dataset, scalers=scalers), dataset_config['fp'])
         print(f"Датасет сохранен в файл: {dataset_config['fp']}")
 

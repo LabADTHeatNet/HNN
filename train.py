@@ -41,6 +41,8 @@ dataset = dict(
     edge_attr=['dP'],
     # Имя колонки, используемой для edge_label
     edge_label=['d'],
+    # scaler_fn="RobustScaler",
+    scaler_fn="MinMaxScaler",
     num_samples=None
 )
 
@@ -106,13 +108,13 @@ if __name__ == '__main__':
         )
     )
     model_main_params = [
-        "RobustScaler",
+        f"{dataset['scaler_fn']}",
         f"{model['name']}",
         f"{model['kwargs']['node_conv_layer_type']}",
         f"{model['kwargs']['node_conv_layer_kwargs']['aggr']}",
     ]
     model_list.append([model, model_main_params])
-    batch_size_list = [384, 256, 128, 64, 32]
+    batch_size_list = [32, 16, 8, 4]
 
     first_exp = True
     for model, model_main_params in model_list:
