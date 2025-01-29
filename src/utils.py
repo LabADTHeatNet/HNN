@@ -4,75 +4,69 @@ import datetime
 import torch
 import torch.nn.functional as F
 
-
 def get_str_timestamp(timestamp=None):
+    """Генерация строки с временной меткой в формате ГГГГММДД_ЧЧММСС."""
     if timestamp is None:
         timestamp = time.time()
     date_time = datetime.datetime.fromtimestamp(timestamp)
-    str_date_time = date_time.strftime("%Y%m%d_%H%M%S")
-    return str_date_time
+    return date_time.strftime("%Y%m%d_%H%M%S")
 
-
-# Функции для метрик
 def compute_metrics(pred, target, scaler=None):
-    mae = F.l1_loss(pred, target).item()  # Mean Absolute Error
-    mse = F.mse_loss(pred, target).item()  # Mean Squared Error
-    # Root Mean Squared Error
-    # rmse = torch.sqrt(F.mse_loss(pred, target)).item()
+    """Вычисление метрик качества: MAE, MSE и RMSE (после денормализации)."""
+    mae = F.l1_loss(pred, target).item()  # Средняя абсолютная ошибка
+    mse = F.mse_loss(pred, target).item()  # Средняя квадратичная ошибка
     
     ret = {"MAE": mae, "MSE": mse}
-    # ret = {"MAE": mae, "MSE": mse, "RMSE": rmse}
     if scaler is not None:
+        # Обратное преобразование предсказаний и целей
         real_pred = torch.Tensor(scaler.inverse_transform(pred.detach().numpy()))
         real_target = torch.Tensor(scaler.inverse_transform(target.detach().numpy()))
         real_mse = F.mse_loss(real_pred, real_target).item()
-        ret["real_MSE"] = real_mse
+        ret["real_MSE"] = real_mse  # MSE в исходном масштабе
     return ret
 
-# Функция для взвешенной потери
-
-
 def weighted_mse_loss(pred, target, weight):
+    """Взвешенная MSE-функция потерь."""
     loss = F.mse_loss(pred, target, reduction='none')
-    weighted_loss = loss * weight
+    weighted_loss = loss * weight  # Применение весов к ошибкам
     return weighted_loss.mean()
 
-# Функция обучения
-
-
 def epoch(model, loader, optimizer, criterion, device, train=True, scaler=None):
+    """Одна эпоха обучения или валидации."""
     total_loss = 0
     all_preds, all_targets = [], []
     for data in loader:
         data = data.to(device)
         if train:
             optimizer.zero_grad()
+        
+        # Прямой проход
         edge_pred = model(data)
         loss = criterion(edge_pred, data.edge_label)
         total_loss += loss.item()
+        
+        # Сохранение предсказаний и целей для метрик
         all_preds.append(edge_pred.cpu())
         all_targets.append(data.edge_label.cpu())
 
         if train:
-            loss.backward()
-            optimizer.step()
+            loss.backward()  # Обратное распространение
+            optimizer.step()  # Обновление весов
 
+    # Агрегация метрик
     all_preds = torch.cat(all_preds, dim=0)
     all_targets = torch.cat(all_targets, dim=0)
-
     metrics = dict(Loss=total_loss / len(loader))
     metrics.update(compute_metrics(all_preds, all_targets, scaler=scaler))
     return metrics
 
-# Функция валидации и тестирования
-
-
 def train(model, loader, optimizer, criterion, device, scaler=None):
+    """Обучение модели на одном эпохе."""
     model.train()
     return epoch(model, loader, optimizer, criterion, device, train=True, scaler=scaler)
 
-
 @torch.no_grad()
 def valid(model, loader, criterion, device, scaler=None):
+    """Валидация модели на одном эпохе."""
     model.eval()
     return epoch(model, loader, None, criterion, device, train=False, scaler=scaler)

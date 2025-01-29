@@ -3,7 +3,6 @@ import importlib
 import copy
 import json
 import tqdm
-from pprint import pprint
 
 import torch
 from torchinfo import summary
@@ -28,207 +27,194 @@ from src.plots import (
     draw_data
 )
 
-
 def exp(cfg, project_name='HeatNet', run_clear_ml=False, log_dir=None):
-
+    """Основная функция запуска эксперимента: обучение и валидация модели."""
+    # Создание директории для логов
     if log_dir is None:
         log_dir = 'tmp'
     log_dir = Path(log_dir)
     log_dir.mkdir(parents=True, exist_ok=True)
 
-    pprint(cfg)
+    # Сохранение конфигурации в файл
     cfg_dump = copy.copy(cfg)
     with open(log_dir / 'params.json', 'w') as f:
         json.dump(cfg_dump, f, indent=4)
 
-    device = torch.device(cfg['utils']['device'])
+    device = torch.device(cfg['utils']['device'])  # Устройство для вычислений (GPU/CPU)
 
+    # Подготовка данных
     dataset, scalers, train_loader, val_loader, test_loader = prepare_data(
         cfg['dataset'], cfg['dataloader'], cfg['utils']['seed'])
 
-    # Пример вывода батча
+    # Пример вывода информации о батче
     for batch in train_loader:
         print("Пример батча:")
         print(batch)
-        break  # Один батч для примера
+        break
 
-    # Параметры модели
-    in_node_dim = dataset[0].x.shape[1]
-    in_edge_dim = dataset[0].edge_attr.shape[1]
-    # Регрессия: одно значение для edge_label
-    out_dim = dataset[0].edge_label.shape[1]
-    # Инициализация модели, оптимизатора и функции потерь
+    # Инициализация модели
+    in_node_dim = dataset[0].x.shape[1]  # Размерность признаков узлов
+    in_edge_dim = dataset[0].edge_attr.shape[1]  # Размерность признаков ребер
+    out_dim = dataset[0].edge_label.shape[1]  # Размерность целевых меток
 
+    # Динамический импорт класса модели
     model_fn = getattr(
         importlib.import_module(f"src.models.{cfg['model']['name']}"),
         cfg['model']['name'])
 
     def create_model():
-        return model_fn(in_node_dim=in_node_dim,
-                        in_edge_dim=in_edge_dim,
-                        out_dim=out_dim,
-                        **cfg['model']['kwargs'])
+        return model_fn(
+            in_node_dim=in_node_dim,
+            in_edge_dim=in_edge_dim,
+            out_dim=out_dim,
+            **cfg['model']['kwargs']
+        )
     model = create_model()
+
+    # Проверка формы вывода модели
     with torch.no_grad():
         pred_tmp = model(batch)
-    print("Размер вывода:")
-    print(pred_tmp.shape)
+    print("Размер вывода модели:", pred_tmp.shape)
 
-    print(model)
-    # summary(model)
-
-    optimizer_fn = getattr(importlib.import_module(
-        'torch.optim'), cfg['optimizer']['name'])
+    # Инициализация оптимизатора и планировщика
+    optimizer_fn = getattr(importlib.import_module('torch.optim'), cfg['optimizer']['name'])
     optimizer = optimizer_fn(model.parameters(), **cfg['optimizer']['kwargs'])
 
     if cfg['scheduler']['name'] is not None:
-        scheduler_fn = getattr(importlib.import_module(
-            'torch.optim.lr_scheduler'), cfg['scheduler']['name'])
+        scheduler_fn = getattr(importlib.import_module('torch.optim.lr_scheduler'), cfg['scheduler']['name'])
         scheduler = scheduler_fn(optimizer, **cfg['scheduler']['kwargs'])
     else:
         scheduler = None
 
+    # Функция потерь
     if cfg['criterion']['name'] is not None:
-        criterion_fn = getattr(importlib.import_module(
-            'torch.nn'), cfg['criterion']['name'])
+        criterion_fn = getattr(importlib.import_module('torch.nn'), cfg['criterion']['name'])
         criterion = criterion_fn(**cfg['criterion']['kwargs'])
     else:
         criterion = None
 
+    # Интеграция с ClearML
     if run_clear_ml:
-        task = Task.init(project_name=project_name,
-                         task_name=str(log_dir),
-                         output_uri=False)
-
-        model_p_dump = cfg_dump.get('model')
-        task.connect(cfg_dump)
+        task = Task.init(
+            project_name=project_name,
+            task_name=str(log_dir),
+            output_uri=False
+        )
+        task.connect(cfg_dump)  # Логирование параметров
         output_model = OutputModel(task=task)
-        output_model.update_design(config_dict=model_p_dump)
+        output_model.update_design(config_dict=cfg_dump.get('model'))
     else:
         task = None
-    writer = SummaryWriter(log_dir=log_dir)
 
+    # Логирование в TensorBoard
+    writer = SummaryWriter(log_dir=log_dir)
     model = model.to(device)
 
-    edge_label_scaler = scalers['edge_label_scaler']
+    edge_label_scaler = scalers['edge_label_scaler']  # Скейлер для меток
 
-    best_score = torch.inf
-    with tqdm.tqdm(total=cfg['train']['num_epochs'], desc="Epochs", unit="epoch") as pbar:
-        for epoch in range(0, cfg['train']['num_epochs']):
-            writer.add_scalar('LR', optimizer.param_groups[0]['lr'], epoch)
+    # Обучение модели
+    best_score = torch.inf  # Лучшее значение метрики
+    with tqdm.tqdm(total=cfg['train']['num_epochs'], desc="Эпохи", unit="epoch") as pbar:
+        for epoch in range(cfg['train']['num_epochs']):
+            writer.add_scalar('LR', optimizer.param_groups[0]['lr'], epoch)  # Логирование lr
 
-            train_metrics = train(model, train_loader,
-                                  optimizer, criterion, device, scaler=edge_label_scaler)
+            # Обучение на тренировочных данных
+            train_metrics = train(model, train_loader, optimizer, criterion, device, scaler=edge_label_scaler)
             for k, v in train_metrics.items():
                 writer.add_scalar(f'{k}/train', v, epoch)
 
-            valid_metrics = valid(
-                model, val_loader, criterion, device, scaler=edge_label_scaler)
+            # Валидация
+            valid_metrics = valid(model, val_loader, criterion, device, scaler=edge_label_scaler)
             for k, v in valid_metrics.items():
                 writer.add_scalar(f'{k}/val', v, epoch)
 
-            # do something (save model, change lr, etc.)
+            # Сохранение лучшей модели
             if best_score > valid_metrics[cfg['train']['score_metric']]:
                 best_epoch = epoch
                 best_score = valid_metrics[cfg['train']['score_metric']]
                 torch.save(model.state_dict(), log_dir / 'best_model.pth')
 
-            lr = scheduler.get_last_lr()[0]
+            # Обновление lr
             if scheduler is not None:
                 scheduler.step()
 
+            # Обновление прогресс-бара
             pbar.set_postfix({
                 'best': f'{best_epoch+1:04d}',
-                'LR': f'{lr:7.1e}',
+                'LR': f'{optimizer.param_groups[0]["lr"]:7.1e}',
                 'Train': '|'.join([f'{k} {v:7.1e}' for k, v in train_metrics.items()]),
                 'Val': '|'.join([f'{k} {v:7.1e}' for k, v in valid_metrics.items()]),
             })
-            pbar.update(1)  # Обновляем прогресс на одну эпоху
+            pbar.update(1)
 
+    # Загрузка лучшей модели для тестирования
     state_dict = torch.load(log_dir / 'best_model.pth', weights_only=True)
     model = create_model()
     model.load_state_dict(state_dict)
     model = model.to(device)
 
-    # Оценка на тестовом датасете
-    test_metrics = valid(model, test_loader, criterion,
-                         device, scaler=edge_label_scaler)
+    # Оценка на тестовых данных
+    test_metrics = valid(model, test_loader, criterion, device, scaler=edge_label_scaler)
     for k, v in test_metrics.items():
         writer.add_scalar(f'{k}/test', v, 0)
-    print(
-        f"Test: {'|'.join([f'{k} {v:7.1e}' for k, v in test_metrics.items()])}")
+    print(f"Тест: {'|'.join([f'{k} {v:7.1e}' for k, v in test_metrics.items()])}")
 
     writer.close()
     if run_clear_ml:
-        task.close()
+        task.close()  # Завершение задачи ClearML
 
 
 def test_exp(exp_dir_path, out_dir_path, num_samples_to_draw=None):
+    """Тестирование модели и сохранение результатов."""
     exp_dir_path = Path(exp_dir_path)
     out_dir_path = Path(out_dir_path)
 
+    # Загрузка конфигурации эксперимента
     with open(exp_dir_path / 'params.json', 'r') as f:
         cfg = json.load(f)
 
-    cfg['dataset']['load'] = True
-    # cfg['dataset']['load'] = False
-    # cfg['dataset']['num_samples'] = None
-    # cfg['dataset']['fp'] = 'pyg_dataset_Yasn_Q_fp.pt'
-
     device = torch.device(cfg['utils']['device'])
 
+    # Подготовка данных
     dataset, scalers, train_loader, val_loader, test_loader = prepare_data(
         cfg['dataset'], cfg['dataloader'], cfg['utils']['seed'])
 
-    # Пример вывода батча
+    # Пример батча
     for batch in test_loader:
-        print("Пример батча:")
+        print("Пример тестового батча:")
         print(batch)
-        break  # Один батч для примера
+        break
 
-    # Параметры модели
+    # Инициализация модели
     in_node_dim = dataset[0].x.shape[1]
     in_edge_dim = dataset[0].edge_attr.shape[1]
     out_dim = dataset[0].edge_label.shape[1]
-    # Инициализация модели, оптимизатора и функции потерь
 
     model_fn = getattr(
         importlib.import_module(f"src.models.{cfg['model']['name']}"),
         cfg['model']['name'])
 
     def create_model():
-        return model_fn(in_node_dim=in_node_dim,
-                        in_edge_dim=in_edge_dim,
-                        out_dim=out_dim,
-                        **cfg['model']['kwargs'])
+        return model_fn(
+            in_node_dim=in_node_dim,
+            in_edge_dim=in_edge_dim,
+            out_dim=out_dim,
+            **cfg['model']['kwargs']
+        )
     model = create_model()
-    with torch.no_grad():
-        pred_tmp = model(batch)
-    print("Размер вывода:")
-    print(pred_tmp.shape)
 
-    print(model)
-
-    if cfg['criterion']['name'] is not None:
-        criterion_fn = getattr(importlib.import_module(
-            'torch.nn'), cfg['criterion']['name'])
-        criterion = criterion_fn(**cfg['criterion']['kwargs'])
-    else:
-        criterion = None
-
+    # Загрузка весов лучшей модели
     state_dict = torch.load(exp_dir_path / 'best_model.pth', weights_only=True)
-    model = create_model()
     model.load_state_dict(state_dict)
     model = model.to(device)
-    model.eval()
+    model.eval()  # Режим инференса
 
+    # Оценка на тестовых данных
     edge_label_scaler = scalers['edge_label_scaler']
-    # Оценка на тестовом датасете
-    test_metrics = valid(model, test_loader, criterion,
-                         device, scaler=edge_label_scaler)
-    print(
-        f"Test: {'|'.join([f'{k} {v:7.1e}' for k, v in test_metrics.items()])}")
+    test_metrics = valid(model, test_loader, None, device, scaler=edge_label_scaler)
+    print(f"Тест: {'|'.join([f'{k} {v:7.1e}' for k, v in test_metrics.items()])}")
 
+    # Сохранение предсказаний
     all_data = list()
     with torch.no_grad():
         for data in test_loader:
