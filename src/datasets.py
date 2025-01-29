@@ -219,7 +219,9 @@ def prepare_data(dataset_config, dataloader_config, seed=42):
     print(f"Train: {len(train_dataset)}, Val: {len(val_dataset)}, Test: {len(test_dataset)}")
 
     # Создание DataLoader
-    return create_dataloaders(train_dataset, val_dataset, test_dataset, dataloader_config['batch_size'])
+    train_loader, val_loader, test_loader = create_dataloaders(train_dataset, val_dataset, test_dataset, dataloader_config['batch_size'])
+
+    return dataset, scalers, train_loader, val_loader, test_loader
 
 def data_to_tables(in_data,
                    node_attr, edge_attr, edge_label,

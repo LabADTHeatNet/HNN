@@ -113,25 +113,11 @@ if __name__ == '__main__':
         )
     )
 
-    # Формирование уникальных имен экспериментов
-    exp_main_params = [
-        f"{dataset['scaler_fn']}",
-        f"{model['name']}",
-    ]
-    # Добавление параметров агрегации и голов
-    if 'aggr' in model['kwargs']['node_conv_layer_kwargs']:
-        exp_main_params.append(f"{model['kwargs']['node_conv_layer_kwargs']['aggr']}")
-    if 'heads' in model['kwargs']['node_conv_layer_kwargs']:
-        exp_main_params.append(f"heads{model['kwargs']['node_conv_layer_kwargs']['heads']}")
-
     # Генерация вариантов моделей с разными параметрами
     for split_out_fc in [True]:
         model_cur = copy.copy(model)
-        exp_main_params_cur = copy.copy(exp_main_params)
         model['kwargs']['split_out_fc'] = split_out_fc
-        if model['kwargs']['split_out_fc']:
-            exp_main_params_cur.append('splited_out')
-        model_list.append([model_cur, exp_main_params_cur])
+        model_list.append(model_cur)
 
     # Параметры для перебора: размер батча и методы нормализации
     batch_size_list = [64, 32, 16, 8]
@@ -139,49 +125,63 @@ if __name__ == '__main__':
 
     # Формирование всех комбинаций конфигураций
     cfg_list = list()
-    for model, exp_main_params in model_list:
+    for model in model_list:
         for batch_size in batch_size_list:
             for scaler_fn in scalers_list:
                 cfg = dict(
-                    utils=utils,
-                    dataset=dataset,
-                    dataloader=dataloader,
-                    model=model,
-                    optimizer=optimizer,
-                    scheduler=scheduler,
-                    criterion=criterion,
-                    train=train
+                    utils=copy.copy(utils),
+                    dataset=copy.copy(dataset),
+                    dataloader=copy.copy(dataloader),
+                    model=copy.copy(model),
+                    optimizer=copy.copy(optimizer),
+                    scheduler=copy.copy(scheduler),
+                    criterion=copy.copy(criterion),
+                    train=copy.copy(train)
                 )
                 cfg['dataset']['scaler_fn'] = scaler_fn
                 cfg['dataloader']['batch_size'] = batch_size
-                # Формирование имени эксперимента
-                exp_params = copy.copy(exp_main_params)
-                exp_params.append(f"bs{cfg['dataloader']['batch_size']}")
-                cfg_list.append([cfg, exp_params])
+        
+                cfg_list.append(cfg)
 
     # Запуск экспериментов
-    for idx, (cfg, exp_params) in enumerate(cfg_list):
+    for idx, cfg in enumerate(cfg_list):
+
         if idx != 0:
             cfg['dataset']['load'] = True  # Загружать датасет после первого эксперимента
 
         # Настройки для отладки
         if debug_run:
             run_clear_ml = False
-            cfg['utils']['out_dir'] = utils['out_dir'] + '_test'
+            cfg['utils']['out_dir'] += '_test'
             cfg['dataset']['num_samples'] = 60  # Ограничение данных
             cfg['train']['num_epochs'] = 10  # Сокращение эпох
             num_samples_to_draw = 0  # Отключение визуализации
 
+        # Формирование уникальных имен экспериментов
+        exp_params = [
+            f"{cfg['dataset']['scaler_fn']}",
+            f"{cfg['model']['name']}",
+        ]
+        # Добавление параметров агрегации и голов
+        if 'aggr' in cfg['model']['kwargs']['node_conv_layer_kwargs']:
+            exp_params.append(f"{cfg['model']['kwargs']['node_conv_layer_kwargs']['aggr']}")
+        if 'heads' in cfg['model']['kwargs']['node_conv_layer_kwargs']:
+            exp_params.append(f"heads{cfg['model']['kwargs']['node_conv_layer_kwargs']['heads']}")
+        if cfg['model']['kwargs']['split_out_fc']:
+            exp_params.append('split_out')
+        #  Добавление параметра размера батча
+        exp_params.append(f"bs{cfg['dataloader']['batch_size']}")
+        
         # Генерация уникального имени эксперимента с временной меткой
         ts = get_str_timestamp()
         exp_params.append(ts)
         exp_name = '_'.join(exp_params)
-        exp_dir_path = osp.join(cfg['utils']['out_dir'], exp_name)
 
         # Вывод конфигурации
         pprint.pprint(cfg)
 
         # Запуск эксперимента
+        exp_dir_path = osp.join(cfg['utils']['out_dir'], exp_name)
         exp(cfg,
             project_name='HeatNet',
             run_clear_ml=run_clear_ml,

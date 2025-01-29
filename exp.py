@@ -43,8 +43,7 @@ def exp(cfg, project_name='HeatNet', run_clear_ml=False, log_dir=None):
     device = torch.device(cfg['utils']['device'])  # Устройство для вычислений (GPU/CPU)
 
     # Подготовка данных
-    dataset, scalers, train_loader, val_loader, test_loader = prepare_data(
-        cfg['dataset'], cfg['dataloader'], cfg['utils']['seed'])
+    dataset, scalers, train_loader, val_loader, test_loader = prepare_data(cfg['dataset'], cfg['dataloader'], cfg['utils']['seed'])
 
     # Пример вывода информации о батче
     for batch in train_loader:
@@ -203,6 +202,13 @@ def test_exp(exp_dir_path, out_dir_path, num_samples_to_draw=None):
         )
     model = create_model()
 
+    # Функция потерь
+    if cfg['criterion']['name'] is not None:
+        criterion_fn = getattr(importlib.import_module('torch.nn'), cfg['criterion']['name'])
+        criterion = criterion_fn(**cfg['criterion']['kwargs'])
+    else:
+        criterion = None
+        
     # Загрузка весов лучшей модели
     state_dict = torch.load(exp_dir_path / 'best_model.pth', weights_only=True)
     model.load_state_dict(state_dict)
@@ -211,7 +217,7 @@ def test_exp(exp_dir_path, out_dir_path, num_samples_to_draw=None):
 
     # Оценка на тестовых данных
     edge_label_scaler = scalers['edge_label_scaler']
-    test_metrics = valid(model, test_loader, None, device, scaler=edge_label_scaler)
+    test_metrics = valid(model, test_loader, criterion, device, scaler=edge_label_scaler)
     print(f"Тест: {'|'.join([f'{k} {v:7.1e}' for k, v in test_metrics.items()])}")
 
     # Сохранение предсказаний
