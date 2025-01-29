@@ -40,7 +40,7 @@ dataset = dict(
     # Пример: укажите ваши атрибуты рёбер
     edge_attr=['dP'],
     # Имя колонки, используемой для edge_label
-    edge_label=['d'],
+    edge_label=['d', 'vel'],
     # scaler_fn="RobustScaler",
     scaler_fn="MinMaxScaler",
     num_samples=None
@@ -49,7 +49,7 @@ dataset = dict(
 dataloader = dict(
     train_ratio=0.7,  # 70% - обучающая выборка
     val_ratio=0.15,   # 15% - валидационная выборка
-    batch_size=32,
+    batch_size=None,
 )
 
 optimizer = dict(
@@ -74,7 +74,7 @@ criterion = dict(
 )
 
 train = dict(
-    num_epochs=250,
+    num_epochs=500,
     score_metric='MSE'
 )
 
@@ -82,11 +82,12 @@ train = dict(
 if __name__ == '__main__':
     debug_run = False
     run_clear_ml = True
-
+    debug_out_dir = utils['out_dir'] + '_test'
+    num_samples_to_draw = 20
+    
     model_list = list()
 
-    # model_name_list = ['FlatGCN', 'ParametricGCN', 'ParametricGCN_GlobalPool']
-    # model_name_list = ['ParametricGCN', 'ParametricGCN_GlobalPool']
+    # model_name_list = ['FlatGCN', 'ParametricGCN', 'ParametricGCN_GlobalPool', 'uGCN']
     # conv_type_list = ['GCNConv', 'SAGEConv', 'GATConv']
     # global_pool_list = ['global_mean_pool', 'global_max_pool']
 
@@ -95,7 +96,7 @@ if __name__ == '__main__':
     out_fc_layer_list = [32*4**i for i in list(reversed(range(4)))]
 
     model = dict(
-        name='ParametricGCN_GlobalPool',
+        name='uGCN',
         kwargs=dict(
             node_conv_layer_type='SAGEConv',
             node_conv_layer_list=node_conv_layer_list,
@@ -104,17 +105,43 @@ if __name__ == '__main__':
                 aggr='mean'),
             node_global_pool_type='global_mean_pool',
             edge_fc_layer_list=edge_fc_layer_list,
-            out_fc_layer_list=out_fc_layer_list
+            out_fc_layer_list=out_fc_layer_list,
+            split_out_fc=None,
         )
     )
+    # model = dict(
+    #     name='uGCN',
+    #     kwargs=dict(
+    #         node_conv_layer_type='GATConv',
+    #         node_conv_layer_list=node_conv_layer_list,
+    #         node_conv_layer_kwargs=dict(
+    #             heads=4),
+    #         node_global_pool_type='global_mean_pool',
+    #         edge_fc_layer_list=edge_fc_layer_list,
+    #         out_fc_layer_list=out_fc_layer_list,
+    #         split_out_fc=None,
+    #     )
+    # )
     model_main_params = [
         f"{dataset['scaler_fn']}",
         f"{model['name']}",
-        f"{model['kwargs']['node_conv_layer_type']}",
-        f"{model['kwargs']['node_conv_layer_kwargs']['aggr']}",
     ]
-    model_list.append([model, model_main_params])
-    batch_size_list = [32, 16, 8, 4]
+    if 'aggr' in model['kwargs']['node_conv_layer_kwargs']:
+        model_main_params.append(f"{model['kwargs']['node_conv_layer_kwargs']['aggr']}")
+    if 'heads' in model['kwargs']['node_conv_layer_kwargs']:
+        model_main_params.append(f"{model['kwargs']['node_conv_layer_kwargs']['heads']}heads")
+
+    for split_out_fc in [True]:
+        model_cur = copy.copy(model)
+        model_main_params_cur = copy.copy(model_main_params)
+
+        model['kwargs']['split_out_fc'] = split_out_fc
+        if model['kwargs']['split_out_fc']:
+            model_main_params_cur.append('splited_out')
+        model_list.append([model_cur, model_main_params_cur])
+
+    # batch_size_list = [64, 32, 16, 8, 4]
+    batch_size_list = [64, 32, 16, 8]
 
     first_exp = True
     for model, model_main_params in model_list:
@@ -135,9 +162,10 @@ if __name__ == '__main__':
 
             if debug_run:
                 run_clear_ml = False
-                cfg['utils']['out_dir'] += '_test'
-                cfg['dataset']['num_samples'] = 6000
-                cfg['train']['num_epochs'] = 100
+                cfg['utils']['out_dir'] = debug_out_dir
+                cfg['dataset']['num_samples'] = 60
+                cfg['train']['num_epochs'] = 10
+                num_samples_to_draw = 0
 
             if not first_exp:
                 cfg['dataset']['load'] = True
@@ -157,4 +185,4 @@ if __name__ == '__main__':
             first_exp = False
 
             out_dir_path = osp.join(exp_dir_path, 'results')
-            test_exp(exp_dir_path, out_dir_path, num_samples_to_draw=100)
+            test_exp(exp_dir_path, out_dir_path, num_samples_to_draw=num_samples_to_draw)

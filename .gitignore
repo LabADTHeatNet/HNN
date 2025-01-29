@@ -7,3 +7,4 @@ __pycache__/
 /out_straight/
 /out_Yasn_Q/
 .ipynb_checkpoints/
+/src/models/test_models/

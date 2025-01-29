@@ -189,7 +189,7 @@ def test_exp(exp_dir_path, out_dir_path, num_samples_to_draw=None):
     # Параметры модели
     in_node_dim = dataset[0].x.shape[1]
     in_edge_dim = dataset[0].edge_attr.shape[1]
-    out_dim = 1  # Регрессия: одно значение для edge_label
+    out_dim = dataset[0].edge_label.shape[1]
     # Инициализация модели, оптимизатора и функции потерь
 
     model_fn = getattr(
