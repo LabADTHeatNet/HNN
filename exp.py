@@ -27,6 +27,11 @@ from src.plots import (
     draw_data
 )
 
+def _log_metrics(metrics, suffix, writer, epoch):
+    """Логирует метрики в TensorBoard с указанным префиксом."""
+    for key, value in metrics.items():
+        writer.add_scalar(f"{key}/{suffix}", value, epoch)
+
 def exp(cfg, project_name='HeatNet', run_clear_ml=False, log_dir=None):
     """Основная функция запуска эксперимента: обучение и валидация модели."""
     # Создание директории для логов
@@ -109,23 +114,25 @@ def exp(cfg, project_name='HeatNet', run_clear_ml=False, log_dir=None):
     writer = SummaryWriter(log_dir=log_dir)
     model = model.to(device)
 
+    summary(model)
+    print(model)
+
     edge_label_scaler = scalers['edge_label_scaler']  # Скейлер для меток
 
     # Обучение модели
     best_score = torch.inf  # Лучшее значение метрики
-    with tqdm.tqdm(total=cfg['train']['num_epochs'], desc="Эпохи", unit="epoch") as pbar:
+    with tqdm.tqdm(total=cfg['train']['num_epochs'], desc="Epochs", unit="epoch") as pbar:
         for epoch in range(cfg['train']['num_epochs']):
             writer.add_scalar('LR', optimizer.param_groups[0]['lr'], epoch)  # Логирование lr
 
             # Обучение на тренировочных данных
             train_metrics = train(model, train_loader, optimizer, criterion, device, scaler=edge_label_scaler)
-            for k, v in train_metrics.items():
-                writer.add_scalar(f'{k}/train', v, epoch)
-
             # Валидация
             valid_metrics = valid(model, val_loader, criterion, device, scaler=edge_label_scaler)
-            for k, v in valid_metrics.items():
-                writer.add_scalar(f'{k}/val', v, epoch)
+
+            # Логирование метрик
+            _log_metrics(train_metrics, "train", writer, epoch)
+            _log_metrics(valid_metrics, "val", writer, epoch)
 
             # Сохранение лучшей модели
             if best_score > valid_metrics[cfg['train']['score_metric']]:
@@ -154,8 +161,8 @@ def exp(cfg, project_name='HeatNet', run_clear_ml=False, log_dir=None):
 
     # Оценка на тестовых данных
     test_metrics = valid(model, test_loader, criterion, device, scaler=edge_label_scaler)
-    for k, v in test_metrics.items():
-        writer.add_scalar(f'{k}/test', v, 0)
+    _log_metrics(test_metrics, "test", writer, 0)
+
     print(f"Тест: {'|'.join([f'{k} {v:7.1e}' for k, v in test_metrics.items()])}")
 
     writer.close()

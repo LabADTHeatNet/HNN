@@ -13,6 +13,9 @@ from torch_geometric.loader import DataLoader
 
 import tqdm
 
+from src.utils import get_str_timestamp
+
+
 def find_file_pairs(root_dir):
     """Поиск пар файлов nodes и edges в директории и поддиректориях."""
     files_list = []
@@ -166,7 +169,10 @@ def create_dataset(root_dir, node_attr, edge_attr, edge_label, num_samples=None,
             data = process_dataframes(nodes_df, edges_df, node_attr, edge_attr, edge_label, nodes_fp, edges_fp)
             dataset.append(data)
         except Exception as e:
-            print(f"Ошибка обработки: {e}")
+            error_msg = f"Ошибка обработки файлов:\n- Узлы: {nodes_fp}\n- Ребра: {edges_fp}\nПричина: {str(e)}"
+            print(error_msg)
+            with open("data_processing_errors.log", "a") as log_file:
+                log_file.write(f"{get_str_timestamp()} | {error_msg}\n")
 
     return dataset, scalers
 
