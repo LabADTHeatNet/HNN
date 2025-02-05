@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 import os.path as osp
 import importlib
 import pandas as pd
@@ -17,20 +17,25 @@ from src.utils import get_str_timestamp
 
 
 def find_file_pairs(root_dir):
-    """Поиск пар файлов nodes и edges в директории и поддиректориях."""
-    files_list = []
-    for subdir, _, files in os.walk(root_dir):
-        nodes_files = [f for f in files if 'nodes' in f]
+    """Поиск пар файлов nodes и edges в директории и поддиректориях с использованием pathlib."""
+    root = Path(root_dir)
+    file_pairs = []
 
-        for nodes_file in nodes_files:
-            if '-checkpoint' not in nodes_file:  # Игнорирование временных файлов
-                edges_file = nodes_file.replace('nodes', 'tubes')
-                nodes_path = os.path.join(subdir, nodes_file)
-                edges_path = os.path.join(subdir, edges_file)
-                # Проверка существования парных файлов
-                if os.path.exists(nodes_path) and os.path.exists(edges_path):
-                    files_list.append([nodes_path, edges_path])
-    return files_list
+    # Рекурсивно ищем файлы, содержащие 'nodes' и оканчивающиеся на .csv
+    for nodes_path in root.rglob("*nodes*.csv"):
+        # Пропускаем временные файлы (например, Excel временные файлы начинающиеся с '~$'
+        # или файлы, содержащие '-checkpoint' в имени)
+        if nodes_path.name.startswith("~$") or "-checkpoint" in nodes_path.name:
+            continue
+
+        # Определяем соответствующий файл, заменяя 'nodes' на 'tubes'
+        edges_name = nodes_path.name.replace("nodes", "tubes")
+        edges_path = nodes_path.parent / edges_name
+
+        if edges_path.exists():
+            file_pairs.append([str(nodes_path), str(edges_path)])
+
+    return file_pairs
 
 def load_dataframes(files_list):
     """Загрузка данных узлов и ребер из CSV-файлов."""
