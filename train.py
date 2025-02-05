@@ -23,10 +23,15 @@ else:
     server_name = 'seth'  # Локальный сервер
     root_dir = '.'  # Текущая директория для локального запуска
 
+
+def calc_gamma(init_lr, final_lr, num_epochs):
+    return pow(final_lr / init_lr, 1 / num_epochs)
+
+
 # %% Конфигурация эксперимента
 if __name__ == '__main__':
     debug_run = False  # Режим отладки (уменьшает размер данных и длительность обучения)
-    run_clear_ml = False  # Интеграция с ClearML для трекинга экспериментов
+    run_clear_ml = True  # Интеграция с ClearML для трекинга экспериментов
     num_samples_to_draw = 20  # Количество примеров для визуализации после теста
 
     # Определение устройства (GPU/CPU)
@@ -48,7 +53,7 @@ if __name__ == '__main__':
         load=False,  # Загружать предобработанный датасет из файла
         fp='pyg_dataset_Yasn_Q.pt',  # Файл предобработанного датасета
         node_attr=['pos_x', 'pos_y', 'P', 'types'],  # Атрибуты узлов
-        edge_attr=['dP'],  # Атрибуты ребер
+        edge_attr=['dP', 'l'],  # Атрибуты ребер
         # edge_label=['d', 'vel'],  # Целевые метки ребер
         edge_label=['d'],  # Целевые метки ребер
         scaler_fn=None,  # Метод нормализации данных (None/MinMaxScaler/RobustScaler)
@@ -71,12 +76,22 @@ if __name__ == '__main__':
         )
     )
 
+    # Параметры обучения
+    train = dict(
+        num_epochs=250,  # Количество эпох
+        score_metric='MSE'  # Метрика для выбора лучшей модели
+        # score_metric='Acc_score'  # Метрика для выбора лучшей модели
+    )
+
     # Настройки планировщика скорости обучения
     scheduler = dict(
         name='StepLR',  # Стратегия изменения lr
         kwargs=dict(
-            step_size=20,  # Шаг уменьшения lr
-            gamma=0.85  # Множитель уменьшения lr
+            step_size=1,  # Шаг уменьшения lr
+            # Множитель уменьшения lr
+            gamma=calc_gamma(init_lr=optimizer['kwargs']['lr'],
+                             final_lr=1e-5,
+                             num_epochs=train['num_epochs'])
         )
     )
 
@@ -86,16 +101,14 @@ if __name__ == '__main__':
         kwargs=dict()
     )
 
-    # Параметры обучения
-    train = dict(
-        num_epochs=500,  # Количество эпох
-        score_metric='MSE'  # Метрика для выбора лучшей модели
-    )
-
     # Генерация архитектурных параметров модели
-    node_conv_layer_list = [4*2**i for i in range(6)] + [256] * 16  # Слои для конволюций узлов
-    edge_fc_layer_list = [8*2**i for i in range(6)]  # Слои для ребер
-    out_fc_layer_list = [32*4**i for i in list(reversed(range(4)))]  # Выходные слои
+    # node_conv_layer_list = [4*2**i for i in range(6)] + [256] * 16  # Слои для конволюций узлов
+    # edge_fc_layer_list = [8*2**i for i in range(6)]  # Слои для ребер
+    # out_fc_layer_list = [32*4**i for i in list(reversed(range(4)))]  # Выходные слои
+
+    node_conv_layer_list = [2*2**(i+1) for i in range(4)] + [128] * 32  # Слои для конволюций узлов
+    edge_fc_layer_list = [2*2**(2*i+1) for i in range(4)]  # Слои для ребер
+    out_fc_layer_list = [2*2**(3*i+3) for i in list(reversed(range(3)))]  # Выходные слои
 
     # Базовая конфигурация модели uGCN
     ugcn_model = dict(
@@ -119,9 +132,14 @@ if __name__ == '__main__':
         for split_out_fc in split_out_fc_list
     ]
 
-    node_conv_layer_list = [4*2**i for i in range(6)] + [256] * 4  # Слои для конволюций узлов
-    edge_fc_layer_list = [8*2**i for i in range(6)]  # Слои для ребер
-    out_fc_layer_list = [32*4**i for i in list(reversed(range(4)))]  # Выходные слои
+    # node_conv_layer_list = [4*2**i for i in range(6)] + [256] * 4  # Слои для конволюций узлов
+    # edge_fc_layer_list = [8*2**i for i in range(6)]  # Слои для ребер
+    # out_fc_layer_list = [32*4**i for i in list(reversed(range(4)))]  # Выходные слои
+
+    node_conv_layer_list = [128] * 32  # Слои для конволюций узлов
+    edge_fc_layer_list = [2*2**(2*i+2) for i in range(4)]  # Слои для ребер
+    out_fc_layer_list = [2*2**(3*i+1) for i in list(reversed(range(3)))]  # Выходные слои
+
     # Базовая конфигурация модели uGCN_NodeFeatCollect
     ugcn_nfc_model = dict(
         name='uGCN_NodeFeatCollect',
@@ -143,7 +161,7 @@ if __name__ == '__main__':
         {**ugcn_nfc_model, "kwargs": {**ugcn_nfc_model["kwargs"],  "split_out_fc": split_out_fc}}
         for split_out_fc in split_out_fc_list
     ]
-    
+
     # # Базовая конфигурация модели MultiScaleEdgeGCN
     # msegcn_model = dict(
     #     name='MultiScaleEdgeGCN',
@@ -162,15 +180,14 @@ if __name__ == '__main__':
     # ]
 
     # Формирование списка конфигураций моделей
-    model_list = list()  
+    model_list = list()
     # model_list.extend(ugcn_models_list)  # uGCN
     model_list.extend(ugcn_nfc_models_list)  # uGCN_NodeFeatCollect
     # model_list.extend(msegcn_models_list)  # MultiScaleEdgeGCN
 
     # Параметры для перебора: размер батча и методы нормализации
-    batch_size_list = [8, 16, 256]
-    # scalers_list = ['MinMaxScaler', 'RobustScaler']
-    scalers_list = ['MinMaxScaler']
+    batch_size_list = [128, 64, 32]
+    scalers_list = ['MinMaxScaler', 'RobustScaler']
 
     # Формирование всех комбинаций конфигураций
     cfg_list = [
@@ -199,9 +216,9 @@ if __name__ == '__main__':
         if debug_run:
             run_clear_ml = False
             cfg['utils']['out_dir'] += '_test'
-            cfg['dataset']['num_samples'] = 60  # Ограничение данных
+            cfg['dataset']['num_samples'] = 1024  # Ограничение данных
             cfg['train']['num_epochs'] = 10  # Сокращение эпох
-            num_samples_to_draw = 0  # Отключение визуализации
+            num_samples_to_draw = 1  # Отключение визуализации
 
         # Формирование уникальных имен экспериментов
         exp_params = [
@@ -226,7 +243,7 @@ if __name__ == '__main__':
 
         #  Добавление параметра размера батча
         exp_params.append(f"bs{cfg['dataloader']['batch_size']}")
-        
+
         # Генерация уникального имени эксперимента с временной меткой
         ts = get_str_timestamp()
         exp_params.append(ts)

@@ -21,9 +21,24 @@ def compute_metrics(pred, target, scaler=None):
         # Обратное преобразование предсказаний и целей
         real_pred = torch.Tensor(scaler.inverse_transform(pred.detach().numpy()))
         real_target = torch.Tensor(scaler.inverse_transform(target.detach().numpy()))
+        real_mae = F.l1_loss(real_pred, real_target).item()
         real_mse = F.mse_loss(real_pred, real_target).item()
+        ret["real_MAE"] = real_mae  # MAE в исходном масштабе
         ret["real_MSE"] = real_mse  # MSE в исходном масштабе
     return ret
+
+def compute_metrics_cls(pred, target, scaler=None):
+    """
+    Для классификации по moded: считаем accuracy.
+    pred: логиты [num_edges, 3]
+    target: [num_edges] (значения 0,1,2)
+    """
+    with torch.no_grad():
+        pred_labels = pred.argmax(dim=1)
+        correct = (pred_labels == target).sum().item()
+        total = target.size(0)
+        acc_score = 1 - correct / total
+    return {"Acc_score": acc_score}
 
 def weighted_mse_loss(pred, target, weight):
     """Взвешенная MSE-функция потерь."""

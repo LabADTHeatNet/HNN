@@ -37,6 +37,7 @@ def find_file_pairs(root_dir):
 
     return file_pairs
 
+
 def load_dataframes(files_list):
     """Загрузка данных узлов и ребер из CSV-файлов."""
     nodes_dataframes = []
@@ -60,13 +61,14 @@ def load_dataframes(files_list):
 
     return nodes_dataframes, edges_dataframes
 
+
 def fit_global_scalers(nodes_dataframes, edges_dataframes,
                        node_attr, edge_attr, edge_label, scaler_fn=None):
     """Обучение скейлеров на всех данных для согласованной нормализации."""
     if scaler_fn is not None:
         # Динамический импорт класса скейлера из sklearn
         scaler_fn = getattr(importlib.import_module(f"sklearn.preprocessing"), scaler_fn)
-        
+
         # Инициализация скейлеров
         node_attr_scaler = scaler_fn()
         edge_attr_scaler = scaler_fn()
@@ -92,6 +94,7 @@ def fit_global_scalers(nodes_dataframes, edges_dataframes,
         'edge_label_scaler': edge_label_scaler
     }
 
+
 def normalize_dataframes(nodes_dataframes, edges_dataframes,
                          node_attr, edge_attr, edge_label,
                          scalers, edge_label_pred=None):
@@ -106,6 +109,7 @@ def normalize_dataframes(nodes_dataframes, edges_dataframes,
 
     return nodes_dataframes, edges_dataframes
 
+
 def denormalize_dataframes(nodes_dataframes, edges_dataframes,
                            node_attr, edge_attr, edge_label,
                            scalers, edge_label_pred=None):
@@ -118,6 +122,7 @@ def denormalize_dataframes(nodes_dataframes, edges_dataframes,
             edges_df[edge_label_pred] = scalers['edge_label_scaler'].inverse_transform(edges_df[edge_label_pred])
 
     return nodes_dataframes, edges_dataframes
+
 
 def process_dataframes(nodes_df, edges_df,
                        node_attr, edge_attr, edge_label,
@@ -146,12 +151,13 @@ def process_dataframes(nodes_df, edges_df,
     )
     return data
 
+
 def create_dataset(root_dir, node_attr, edge_attr, edge_label, num_samples=None, seed=42, scaler_fn=None):
     """Создание датасета из файлов с нормализацией и преобразованием в графы."""
     print("Поиск пар файлов...")
     files_list = find_file_pairs(root_dir)
     print(f"Найдено {len(files_list)} пар файлов.")
-    
+
     # Фиксация случайности для воспроизводимости
     random.Random(seed).shuffle(files_list)
     files_list = files_list[:num_samples]  # Ограничение количества выборок
@@ -181,6 +187,7 @@ def create_dataset(root_dir, node_attr, edge_attr, edge_label, num_samples=None,
 
     return dataset, scalers
 
+
 def split_dataset(dataset, train_ratio, val_ratio, seed=42):
     """Разделение датасета на обучающую, валидационную и тестовую выборки."""
     total_len = len(dataset)
@@ -192,12 +199,14 @@ def split_dataset(dataset, train_ratio, val_ratio, seed=42):
     torch.manual_seed(seed)
     return random_split(dataset, [train_len, val_len, test_len])
 
+
 def create_dataloaders(train_dataset, val_dataset, test_dataset, batch_size=16):
     """Создание DataLoader для обучения, валидации и тестирования."""
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
     return train_loader, val_loader, test_loader
+
 
 def prepare_data(dataset_config, dataloader_config, seed=42):
     """Основная функция подготовки данных: загрузка или создание датасета."""
@@ -234,6 +243,7 @@ def prepare_data(dataset_config, dataloader_config, seed=42):
 
     return dataset, scalers, train_loader, val_loader, test_loader
 
+
 def data_to_tables(in_data,
                    node_attr, edge_attr, edge_label,
                    scalers=None, edge_label_pred=None):
@@ -249,7 +259,7 @@ def data_to_tables(in_data,
     for i, col_name in enumerate(edge_attr):
         edges_df[col_name] = data.edge_attr[:, i].numpy()
     edges_df[edge_label] = data.edge_label.numpy()
-    
+
     if edge_label_pred is not None:
         edges_df[edge_label_pred] = data.edge_label_pred.numpy()
 

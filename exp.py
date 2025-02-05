@@ -74,11 +74,7 @@ def exp(cfg, project_name='HeatNet', run_clear_ml=False, log_dir=None):
             **cfg['model']['kwargs']
         )
     model = create_model()
-
-    # Проверка формы вывода модели
-    with torch.no_grad():
-        pred_tmp = model(batch)
-    print("Размер вывода модели:", pred_tmp.shape)
+    model = model.to(device)
 
     # Инициализация оптимизатора и планировщика
     optimizer_fn = getattr(importlib.import_module('torch.optim'), cfg['optimizer']['name'])
@@ -93,9 +89,18 @@ def exp(cfg, project_name='HeatNet', run_clear_ml=False, log_dir=None):
     # Функция потерь
     if cfg['criterion']['name'] is not None:
         criterion_fn = getattr(importlib.import_module('torch.nn'), cfg['criterion']['name'])
+        if 'weight' in cfg['criterion']['kwargs']:
+            cfg['criterion']['kwargs']['weight'] = torch.Tensor(cfg['criterion']['kwargs']['weight']).to(device)
         criterion = criterion_fn(**cfg['criterion']['kwargs'])
     else:
         criterion = None
+
+    # Проверка формы вывода модели
+    with torch.no_grad():
+        pred_tmp = model(batch.to(device))
+        tmp_loss = criterion(pred_tmp, batch.edge_label)
+    print("Размер вывода модели:", pred_tmp.shape)
+    print("Тестовый лосс:", tmp_loss)
 
     # Интеграция с ClearML
     if run_clear_ml:
@@ -112,7 +117,6 @@ def exp(cfg, project_name='HeatNet', run_clear_ml=False, log_dir=None):
 
     # Логирование в TensorBoard
     writer = SummaryWriter(log_dir=log_dir)
-    model = model.to(device)
 
     summary(model)
     print(model)
@@ -212,6 +216,8 @@ def test_exp(exp_dir_path, out_dir_path, num_samples_to_draw=None):
     # Функция потерь
     if cfg['criterion']['name'] is not None:
         criterion_fn = getattr(importlib.import_module('torch.nn'), cfg['criterion']['name'])
+        if 'weight' in cfg['criterion']['kwargs']:
+            cfg['criterion']['kwargs']['weight'] = torch.Tensor(cfg['criterion']['kwargs']['weight']).to(device)
         criterion = criterion_fn(**cfg['criterion']['kwargs'])
     else:
         criterion = None
