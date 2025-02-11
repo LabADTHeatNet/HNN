@@ -27,10 +27,12 @@ from src.plots import (
     draw_data
 )
 
+
 def _log_metrics(metrics, suffix, writer, epoch):
     """Логирует метрики в TensorBoard с указанным префиксом."""
     for key, value in metrics.items():
         writer.add_scalar(f"{key}/{suffix}", value, epoch)
+
 
 def exp(cfg, project_name='HeatNet', run_clear_ml=False, log_dir=None):
     """Основная функция запуска эксперимента: обучение и валидация модели."""
@@ -221,7 +223,7 @@ def test_exp(exp_dir_path, out_dir_path, num_samples_to_draw=None):
         criterion = criterion_fn(**cfg['criterion']['kwargs'])
     else:
         criterion = None
-        
+
     # Загрузка весов лучшей модели
     state_dict = torch.load(exp_dir_path / 'best_model.pth', weights_only=True)
     model.load_state_dict(state_dict)

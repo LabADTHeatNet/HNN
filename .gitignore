@@ -6,5 +6,7 @@ __pycache__/
 /out/
 /out_straight/
 /out_Yasn_Q/
+/out_Yasn_Q_test/
 .ipynb_checkpoints/
 /src/models/test_models/
+/datasets_old/
