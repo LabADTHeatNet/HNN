@@ -9,9 +9,9 @@ import plotly.io as pio
 import plotly.graph_objects as go
 import pandapower.plotting as plot
 
-pio.renderers.default = "browser"
-gui = 'QtAgg'
-matplotlib.use(gui, force=True)
+# pio.renderers.default = "browser"
+# gui = 'QtAgg'
+# matplotlib.use(gui, force=True)
 
 
 ##########################

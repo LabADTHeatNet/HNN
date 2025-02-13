@@ -230,6 +230,7 @@ def create_dfs(net, modified_load_buses):
         edges_line['r_ohm_per_km_ideal'] = np.nan
     # Добавление текущего значения сопротивления линии и информации о модификации
     edges_line['r_ohm_per_km'] = net.line['r_ohm_per_km']
+
     edges_line['moded'] = net.line['moded']
     # Расчёт разницы между модифицированным и идеальным значением сопротивления
     edges_line['delta_r'] = edges_line['r_ohm_per_km'] - edges_line['r_ohm_per_km_ideal']
@@ -317,9 +318,9 @@ if __name__ == '__main__':
         # Вывод сообщения о начале создания набора данных для текущей конфигурации
         print(f'Creation of: {dataset_dir}')
         # (Опционально) Генерация заданного количества примеров с использованием list comprehension (последовательная обработка)
-        # [process((fn, dataset_dir, idx)) for idx in range(0, num_samples)]
+        [process((fn, dataset_dir, idx)) for idx in range(0, num_samples)]
         # Параллельная генерация примеров с использованием process_map (закомментировано)
-        result = process_map(process, [(fn, dataset_dir, idx) for idx in range(0, num_samples)], max_workers=max_workers)
+        # result = process_map(process, [(fn, dataset_dir, idx) for idx in range(0, num_samples)], max_workers=max_workers)
 
 ##########################
 # Параметры в таблице nodes_df:

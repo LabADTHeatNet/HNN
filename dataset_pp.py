@@ -80,7 +80,7 @@ def one_hot_decode_column(one_hot_df, column, categories):
 ##########################
 
 
-class Case14Dataset(InMemoryDataset):
+class PPDataset(InMemoryDataset):
     def __init__(self,
                  root,
                  normalize=True,
@@ -456,17 +456,17 @@ if __name__ == '__main__':
     figsize = (20, 20)
 
     # Инициализация набора данных с использованием ранее заданных параметров
-    dataset = Case14Dataset(root=dataset_dir,
-                            normalize=normalize,
-                            scaler_type=scaler_type,
-                            num_samples=num_samples,
-                            nodes_numeric_cols=nodes_numeric_cols,
-                            nodes_cat_cols=nodes_cat_cols,
-                            edges_numeric_cols=edges_numeric_cols,
-                            edges_cat_cols=edges_cat_cols,
-                            edges_index_cols=edges_index_cols,
-                            edges_label_cols=edges_label_cols,
-                            edges_moded_cols=edges_moded_cols)
+    dataset = PPDataset(root=dataset_dir,
+                        normalize=normalize,
+                        scaler_type=scaler_type,
+                        num_samples=num_samples,
+                        nodes_numeric_cols=nodes_numeric_cols,
+                        nodes_cat_cols=nodes_cat_cols,
+                        edges_numeric_cols=edges_numeric_cols,
+                        edges_cat_cols=edges_cat_cols,
+                        edges_index_cols=edges_index_cols,
+                        edges_label_cols=edges_label_cols,
+                        edges_moded_cols=edges_moded_cols)
 
     # Вывод количества образцов в наборе данных
     print(f"Dataset size: {len(dataset)} samples")
