@@ -201,7 +201,7 @@ if __name__ == '__main__':
         sample = dataset[idx]
         print(pd.DataFrame(sample.x, columns=sample.x_cols))
         edge_data = torch.concat([sample.edge_index.T, sample.edge_attr, sample.edge_target], dim=1)
-        edge_cols = ['in', 'out'] + sample.edge_attr_cols  + sample.edge_target_cols
+        edge_cols = ['in', 'out'] + sample.edge_attr_cols + sample.edge_target_cols
         print(pd.DataFrame(edge_data, columns=edge_cols))
 
         visualize_data_sample(sample,

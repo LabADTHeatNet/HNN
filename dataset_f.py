@@ -92,17 +92,38 @@ def sort_edges(edges):
 #############################
 
 
-def generate_nodes(node_num, coord_range):
-    '''Генерирует список узлов с фиксированными координатами.'''
+def generate_nodes(node_num, coord_range, min_distance=5.0, max_attempts=1000):
+    """
+    Генерирует список узлов с фиксированными координатами так, чтобы между любыми двумя точками
+    расстояние было не меньше min_distance.
+    
+    Аргументы:
+      node_num: требуемое число узлов.
+      coord_range: диапазон координат (например, (0, 100)).
+      min_distance: минимальное расстояние между точками.
+      max_attempts: максимальное число попыток для генерации каждой точки.
+      
+    Возвращает:
+      nodes: список узлов в формате [{'id': 0, 'x': ..., 'y': ...}, ...]
+    """
     nodes = []
-    for i in range(node_num):
-        node = {
-            'id': i,
-            'x': random.uniform(*coord_range),
-            'y': random.uniform(*coord_range)
-        }
-        nodes.append(node)
+    attempts = 0
+    while len(nodes) < node_num and attempts < max_attempts * node_num:
+        x = random.uniform(*coord_range)
+        y = random.uniform(*coord_range)
+        valid = True
+        for node in nodes:
+            dist = ((node['x'] - x)**2 + (node['y'] - y)**2)**0.5
+            if dist < min_distance:
+                valid = False
+                break
+        if valid:
+            nodes.append({'id': len(nodes), 'x': x, 'y': y})
+        attempts += 1
+    if len(nodes) < node_num:
+        print("Warning: Не удалось сгенерировать заданное число узлов при условии минимального расстояния.")
     return nodes
+
 
 
 def generate_tree_edges(nodes):
@@ -150,11 +171,12 @@ def compute_angle_between_edges(nodes, edge1, edge2):
     if not common:
         return None
     v = common.pop()
+
     def other_vertex(edge, v):
         return edge[0] if edge[1] == v else edge[1]
     v1 = other_vertex(edge1, v)
     v2 = other_vertex(edge2, v)
-    p_v  = (nodes[v]['x'], nodes[v]['y'])
+    p_v = (nodes[v]['x'], nodes[v]['y'])
     p_v1 = (nodes[v1]['x'], nodes[v1]['y'])
     p_v2 = (nodes[v2]['x'], nodes[v2]['y'])
     a = (p_v1[0] - p_v[0], p_v1[1] - p_v[1])
@@ -168,29 +190,30 @@ def compute_angle_between_edges(nodes, edge1, edge2):
     angle = math.acos(cos_angle)
     return angle
 
+
 def generate_connected_edges(nodes, edge_num, min_edge_angle, k_neighbors=5):
     """
     Генерирует набор ребер для одного связного графа.
-    
+
     Сначала строится минимальное остовное дерево (MST) по алгоритму Прима для обеспечения связности (все узлы участвуют).
     Затем, если требуется больше ребер (edge_num > n-1), добавляются дополнительные ребра из кандидатного набора,
     выбранного среди k ближайших соседей для каждого узла.
-    
+
     Дополнительное ребро добавляется, если:
       - оно не пересекается с уже выбранными ребрами (функция edge_segments_intersect),
       - для ребер с общей вершиной угол между ними не меньше min_edge_angle (в радианах).
-    
+
     Возвращает отсортированный список ребер (каждое ребро – кортеж (i, j), i < j).
     """
     # Сначала строим MST для обеспечения связности
     tree_edges = generate_tree_edges(nodes)
     selected_edges = list(tree_edges)
-    
+
     n = len(nodes)
     # Если MST уже содержит требуемое число ребер, возвращаем его
     if len(selected_edges) >= edge_num:
         return sort_edges(selected_edges[:edge_num])
-    
+
     # Формируем кандидатный набор дополнительных ребер.
     # Для каждого узла рассматриваем k ближайших соседей.
     extra_candidates = set()
@@ -209,7 +232,7 @@ def generate_connected_edges(nodes, edge_num, min_edge_angle, k_neighbors=5):
             extra_candidates.add(edge)
     extra_candidates = list(extra_candidates)
     random.shuffle(extra_candidates)
-    
+
     # Добавляем кандидатов, проверяя условия
     for edge in extra_candidates:
         valid = True
@@ -422,7 +445,7 @@ def main():
     edge_target_cols = ['sum', 'prod']
 
     # Генерация фиксированной структуры графа
-    nodes_fixed = generate_nodes(node_num, coord_range)
+    nodes_fixed = generate_nodes(node_num, coord_range, min_distance=5)
     if mode == 'tree':
         edges_fixed = generate_tree_edges(nodes_fixed)
     elif mode == 'random':
