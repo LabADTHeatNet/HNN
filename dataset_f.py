@@ -77,6 +77,17 @@ def edge_segments_intersect(nodes, edge1, edge2):
     return do_segments_intersect(p1, p2, p3, p4)
 
 #############################
+# Функция сортировки ребер
+#############################
+
+
+def sort_edges(edges):
+    '''
+    Сортирует список ребер по возрастанию: сначала по исходному узлу, затем по целевому.
+    '''
+    return sorted(edges, key=lambda e: (e[0], e[1]))
+
+#############################
 # Генерация структуры графа
 #############################
 
@@ -178,7 +189,6 @@ def generate_edge_parameters(edge_attr_dict):
         params[attr] = random.uniform(*attr_range)
     return params
 
-
 ####################################
 # Генерация сэмплов (используем общую структуру)
 ####################################
@@ -242,17 +252,16 @@ class MyGraphDataset(InMemoryDataset):
     '''
     При создании датасета необходимо передать:
       root: путь к директории с CSV-файлами,
-      num_edge_attr: число столбцов (слева) в CSV-файле ребер, относящихся к edge_attr.
-      Остальные столбцы (после source и target) будут сохранены в edge_target.
+      node_attr_cols: список столбцов узловых признаков,
+      edge_attr_cols: список столбцов параметров ребра,
+      edge_target_cols: список столбцов целевых значений ребра.
     '''
 
     def __init__(self, root, node_attr_cols=None, edge_attr_cols=None, edge_target_cols=None, transform=None, pre_transform=None):
-
         self.node_attr_cols = node_attr_cols
         self.edge_attr_cols = edge_attr_cols
         self.edge_target_cols = edge_target_cols
         super(MyGraphDataset, self).__init__(root, transform, pre_transform)
-
         self.data, self.slices = torch.load(self.processed_paths[0])
 
     @property
@@ -278,10 +287,8 @@ class MyGraphDataset(InMemoryDataset):
             nodes_df = pd.read_csv(node_path)
             edges_df = pd.read_csv(edge_path)
 
-            # Формирование признаков узлов – все столбцы кроме 'id'
-            node_all = nodes_df.drop(columns=['id'])
-
-            x = torch.tensor(node_all[self.node_attr_cols].values, dtype=torch.float)
+            # Формирование признаков узлов – выбираем только нужные столбцы
+            x = torch.tensor(nodes_df[self.node_attr_cols].values, dtype=torch.float)
 
             # Формирование индексов ребер
             edge_index = torch.tensor(
@@ -289,9 +296,8 @@ class MyGraphDataset(InMemoryDataset):
                 dtype=torch.long
             )
 
-            # Получаем все столбцы ребер, кроме 'source' и 'target'
+            # Получаем столбцы ребер по разделению: первые edge_attr_cols, остальные – целевые
             edge_all = edges_df.drop(columns=['source', 'target'])
-
             edge_attr = torch.tensor(edge_all[self.edge_attr_cols].values, dtype=torch.float)
             edge_target = torch.tensor(edge_all[self.edge_target_cols].values, dtype=torch.float)
 
@@ -300,7 +306,6 @@ class MyGraphDataset(InMemoryDataset):
             data_list.append(data)
 
         data, slices = self.collate(data_list)
-
         torch.save((data, slices), self.processed_paths[0])
 
 ####################################
@@ -330,12 +335,13 @@ def main():
         '''
         Вычисляет целевые параметры для ребра:
         для каждого атрибута узла вычисляется сумма и произведение значений.
-        Например, если атрибут узла называется 'attr', то возвращаются ключи 'attr_sum' и 'attr_prod'.
+        Например, если атрибут узла называется 'attr', то возвращаются ключи 'sum' и 'prod'.
         '''
         targets = {}
         targets['sum'] = node_params1['attr'] + node_params2['attr']
         targets['prod'] = node_params1['attr'] * node_params2['attr']
         return targets
+
     node_attr_cols = ['x', 'y', 'attr']
     edge_attr_cols = ['weight']
     edge_target_cols = ['sum', 'prod']
@@ -349,6 +355,9 @@ def main():
     else:
         raise ValueError('Некорректный режим. Выберите "tree" или "random".')
 
+    # Вызов функции сортировки ребер после генерации структуры графа
+    edges_fixed = sort_edges(edges_fixed)
+
     print('Структура графа сгенерирована:')
     print('Количество узлов:', len(nodes_fixed))
     print('Количество ребер:', len(edges_fixed))
@@ -357,7 +366,6 @@ def main():
     generate_samples(samples_num, nodes_fixed, edges_fixed, node_attr_dict, edge_attr_dict, edge_target_fn, dataset_dir)
 
     # Создание датасета PyTorch Geometric.
-    # Передаем num_edge_attr, равное количеству параметров ребра (например, len(edge_attr_dict))
     dataset = MyGraphDataset(root=dataset_dir,
                              node_attr_cols=node_attr_cols,
                              edge_attr_cols=edge_attr_cols,
