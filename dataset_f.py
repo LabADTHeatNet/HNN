@@ -137,31 +137,104 @@ def generate_tree_edges(nodes):
     return tree_edges
 
 
-def generate_random_edges(nodes, edge_num):
-    '''
-    Генерирует случайный набор ребер (из всех возможных пар)
-    с проверкой на отсутствие пересечений. Если ребро пересекается с уже выбранными,
-    оно не добавляется. Если добавить требуемое число ребер невозможно,
-    функция выводит предупреждение.
-    '''
-    n = len(nodes)
-    candidate_edges = [(i, j) for i in range(n) for j in range(i+1, n)]
-    random.shuffle(candidate_edges)
+def compute_angle_between_edges(nodes, edge1, edge2):
+    """
+    Вычисляет угол между двумя ребрами (edge1 и edge2), если они имеют общую вершину.
+    Если общей вершины нет, возвращает None.
+    Аргументы:
+      nodes: список узлов, где каждый узел – словарь с ключами 'x' и 'y'
+      edge1, edge2: кортежи (i, j) с индексами узлов
+    Возвращает угол в радианах.
+    """
+    common = set(edge1).intersection(set(edge2))
+    if not common:
+        return None
+    v = common.pop()
+    def other_vertex(edge, v):
+        return edge[0] if edge[1] == v else edge[1]
+    v1 = other_vertex(edge1, v)
+    v2 = other_vertex(edge2, v)
+    p_v  = (nodes[v]['x'], nodes[v]['y'])
+    p_v1 = (nodes[v1]['x'], nodes[v1]['y'])
+    p_v2 = (nodes[v2]['x'], nodes[v2]['y'])
+    a = (p_v1[0] - p_v[0], p_v1[1] - p_v[1])
+    b = (p_v2[0] - p_v[0], p_v2[1] - p_v[1])
+    norm_a = math.sqrt(a[0]**2 + a[1]**2)
+    norm_b = math.sqrt(b[0]**2 + b[1]**2)
+    if norm_a == 0 or norm_b == 0:
+        return 0
+    dot = a[0]*b[0] + a[1]*b[1]
+    cos_angle = max(min(dot/(norm_a*norm_b), 1.0), -1.0)
+    angle = math.acos(cos_angle)
+    return angle
 
-    selected_edges = []
-    for edge in candidate_edges:
-        intersect = False
+def generate_connected_edges(nodes, edge_num, min_edge_angle, k_neighbors=5):
+    """
+    Генерирует набор ребер для одного связного графа.
+    
+    Сначала строится минимальное остовное дерево (MST) по алгоритму Прима для обеспечения связности (все узлы участвуют).
+    Затем, если требуется больше ребер (edge_num > n-1), добавляются дополнительные ребра из кандидатного набора,
+    выбранного среди k ближайших соседей для каждого узла.
+    
+    Дополнительное ребро добавляется, если:
+      - оно не пересекается с уже выбранными ребрами (функция edge_segments_intersect),
+      - для ребер с общей вершиной угол между ними не меньше min_edge_angle (в радианах).
+    
+    Возвращает отсортированный список ребер (каждое ребро – кортеж (i, j), i < j).
+    """
+    # Сначала строим MST для обеспечения связности
+    tree_edges = generate_tree_edges(nodes)
+    selected_edges = list(tree_edges)
+    
+    n = len(nodes)
+    # Если MST уже содержит требуемое число ребер, возвращаем его
+    if len(selected_edges) >= edge_num:
+        return sort_edges(selected_edges[:edge_num])
+    
+    # Формируем кандидатный набор дополнительных ребер.
+    # Для каждого узла рассматриваем k ближайших соседей.
+    extra_candidates = set()
+    for i in range(n):
+        distances = []
+        for j in range(n):
+            if i == j:
+                continue
+            d = euclidean_distance((nodes[i]['x'], nodes[i]['y']), (nodes[j]['x'], nodes[j]['y']))
+            distances.append((d, j))
+        distances.sort(key=lambda x: x[0])
+        for _, j in distances[:k_neighbors]:
+            edge = (i, j) if i < j else (j, i)
+            if edge in selected_edges:
+                continue
+            extra_candidates.add(edge)
+    extra_candidates = list(extra_candidates)
+    random.shuffle(extra_candidates)
+    
+    # Добавляем кандидатов, проверяя условия
+    for edge in extra_candidates:
+        valid = True
+        # Проверка пересечения с уже выбранными ребрами
         for exist_edge in selected_edges:
             if edge_segments_intersect(nodes, edge, exist_edge):
-                intersect = True
+                valid = False
                 break
-        if not intersect:
+        if not valid:
+            continue
+        # Проверка минимального угла для ребер, имеющих общую вершину
+        for exist_edge in selected_edges:
+            if set(edge).intersection(set(exist_edge)):
+                angle = compute_angle_between_edges(nodes, edge, exist_edge)
+                if angle is not None and angle < min_edge_angle:
+                    valid = False
+                    break
+        if valid:
             selected_edges.append(edge)
             if len(selected_edges) == edge_num:
                 break
     if len(selected_edges) < edge_num:
-        print('Warning: Не удалось создать требуемое количество ребер без пересечений. Сгенерировано:', len(selected_edges))
-    return selected_edges
+        print("Warning: Не удалось создать требуемое количество ребер с учетом минимального угла и близости. Сгенерировано:", len(selected_edges))
+    return sort_edges(selected_edges)
+
 
 ####################################
 # Функции для генерации параметров
@@ -317,8 +390,10 @@ def main():
     # Параметры генерации структуры
     node_num = 40              # количество узлов
     coord_range = (0, 100)     # диапазон координат (x и y)
-    mode = 'tree'              # режим формирования графа: 'tree' или 'random'
-    edge_num = 80              # число ребер для режима 'random' (игнорируется для tree)
+    mode = 'random'              # режим формирования графа: 'tree' или 'random'
+    edge_num = node_num*2              # число ребер для режима 'random' (игнорируется для tree)
+    min_edge_angle = math.radians(30)  # 30 градусов в радианах
+    k_neighbors = 5
 
     # Параметры для генерации атрибутов
     node_attr_dict = {
@@ -351,7 +426,7 @@ def main():
     if mode == 'tree':
         edges_fixed = generate_tree_edges(nodes_fixed)
     elif mode == 'random':
-        edges_fixed = generate_random_edges(nodes_fixed, edge_num)
+        edges_fixed = generate_connected_edges(nodes_fixed, edge_num, min_edge_angle, k_neighbors=k_neighbors)
     else:
         raise ValueError('Некорректный режим. Выберите "tree" или "random".')
 
