@@ -66,7 +66,7 @@ def visualize_data_sample(data, node_pos,
         for key in node_attr_label_list:
             if key in data.x_cols:
                 value = data.x[i, data.x_cols.index(key)].item()
-                label_lines.append(f'{key}: {value:.2f}')
+                label_lines.append(f'{key}: {value:.2e}')
         node_labels[i] = f'{i}\n' + '\n'.join(label_lines)
 
     # Добавляем ребра с сохранением порядка и значения для цвета
@@ -114,7 +114,7 @@ def visualize_data_sample(data, node_pos,
         for key in edge_attr_label_list:
             if key in data.edge_attr_cols:
                 value = attr.get(key, 0)
-                label_lines.append(f'{key}: {value:.2f}')
+                label_lines.append(f'{key}: {value:.2e}')
         edge_labels[(u, v)] = '\n'.join(label_lines)
 
     # Настраиваем colormap для узлов
@@ -184,20 +184,28 @@ def visualize_data_sample(data, node_pos,
     ax.set_title('Визуализация Data sample', fontsize=14)
     plt.axis('off')
     plt.tight_layout()
-    plt.show()
 
 
 # Пример использования:
 if __name__ == '__main__':
-    dataset_dir = 'datasets/sum_prod'
+    dataset_dir = 'datasets/fluid_sim'
+    # dataset_dir = 'datasets/sum_prod_1000'
     dataset = MyGraphDataset(root=dataset_dir)
     node_pos_list = ['x', 'y']
-    node_attr_label_list = ['attr']
-    node_attr_color = 'attr'
-    edge_attr_label_list = ['prod', 'sum']
-    edge_attr_color = 'prod'
+    node_attr_label_list = ['cons', 'p']
+    node_attr_color = 'p'
+    edge_attr_label_list = ['radius', 'length', 'R', 'flow', 'p_drop']
+    edge_attr_color = 'radius'
 
-    for idx in range(3):
+    # node_pos_list = ['x', 'y']
+    # node_attr_label_list = ['attr']
+    # node_attr_color = 'attr'
+    # edge_attr_label_list = ['prod', 'sum']
+    # edge_attr_color = 'prod'
+
+    max_idx = 3
+
+    for idx in range(max_idx):
         sample = dataset[idx]
         print(pd.DataFrame(sample.x, columns=sample.x_cols))
         edge_data = torch.concat([sample.edge_index.T, sample.edge_attr, sample.edge_target], dim=1)
@@ -209,3 +217,5 @@ if __name__ == '__main__':
                               node_attr_label_list, node_attr_color,
                               edge_attr_label_list, edge_attr_color,
                               figsize=(16, 9))
+        plt.show(block=False)
+    plt.show(block=True)

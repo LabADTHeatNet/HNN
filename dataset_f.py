@@ -96,13 +96,13 @@ def generate_nodes(node_num, coord_range, min_distance=5.0, max_attempts=1000):
     """
     Генерирует список узлов с фиксированными координатами так, чтобы между любыми двумя точками
     расстояние было не меньше min_distance.
-    
+
     Аргументы:
       node_num: требуемое число узлов.
       coord_range: диапазон координат (например, (0, 100)).
       min_distance: минимальное расстояние между точками.
       max_attempts: максимальное число попыток для генерации каждой точки.
-      
+
     Возвращает:
       nodes: список узлов в формате [{'id': 0, 'x': ..., 'y': ...}, ...]
     """
@@ -123,7 +123,6 @@ def generate_nodes(node_num, coord_range, min_distance=5.0, max_attempts=1000):
     if len(nodes) < node_num:
         print("Warning: Не удалось сгенерировать заданное число узлов при условии минимального расстояния.")
     return nodes
-
 
 
 def generate_tree_edges(nodes):
@@ -258,7 +257,6 @@ def generate_connected_edges(nodes, edge_num, min_edge_angle, k_neighbors=5):
         print("Warning: Не удалось создать требуемое количество ребер с учетом минимального угла и близости. Сгенерировано:", len(selected_edges))
     return sort_edges(selected_edges)
 
-
 ####################################
 # Функции для генерации параметров
 ####################################
@@ -296,18 +294,26 @@ def generate_samples(samples_num, nodes_fixed, edges_fixed, node_attr_dict, edge
       1. Структура узлов (id, x, y) берётся из nodes_fixed.
       2. Для каждого узла генерируются случайные параметры из node_attr_dict.
       3. Для каждого ребра генерируются случайные параметры из edge_attr_dict.
-      4. Для ребра вычисляются целевые значения с помощью edge_target_fn
-         (с использованием параметров узлов, полученных на данном сэмпле).
+         Параметры ребер сохраняются в словаре для доступа при вычислении target в режиме 4.
+      4. Для ребра вычисляются целевые значения с помощью edge_target_fn,
+         которой передаётся информация о смежности графа и словарь sample_edge_params.
       5. Результаты сохраняются в CSV-файлы.
     '''
     if os.path.exists(dataset_dir):
         shutil.rmtree(dataset_dir, ignore_errors=True)
     os.makedirs(dataset_dir)
 
+    # Формирование списка смежности для фиксированной структуры графа
+    adjacency = {node['id']: set() for node in nodes_fixed}
+    for edge in edges_fixed:
+        src, tgt = edge
+        adjacency[src].add(tgt)
+        adjacency[tgt].add(src)
+
     for sample_idx in range(samples_num):
         # Генерация параметров для узлов
         sample_nodes = []
-        node_params_sample = {}  # для удобства доступа по id
+        node_params_sample = {}  # для удобного доступа по id
         for node in nodes_fixed:
             params = generate_node_parameters(node_attr_dict)
             node_sample = {
@@ -319,14 +325,22 @@ def generate_samples(samples_num, nodes_fixed, edges_fixed, node_attr_dict, edge
             sample_nodes.append(node_sample)
             node_params_sample[node['id']] = params
 
+        # Для всех ребер генерируем параметры и сохраняем их в словаре
+        sample_edge_params = {}
+        for edge in edges_fixed:
+            edge_key = tuple(sorted(edge))
+            edge_params = generate_edge_parameters(edge_attr_dict)
+            sample_edge_params[edge_key] = edge_params
+
         # Генерация параметров для ребер и вычисление целевых значений
         sample_edges = []
         for edge in edges_fixed:
             src, tgt = edge
+            edge_key = tuple(sorted(edge))
+            edge_params = sample_edge_params[edge_key]
+            targets = edge_target_fn(src, tgt, node_params_sample, adjacency, sample_edge_params)
             edge_sample = {'source': src, 'target': tgt}
-            edge_params = generate_edge_parameters(edge_attr_dict)
             edge_sample.update(edge_params)
-            targets = edge_target_fn(node_params_sample[src], node_params_sample[tgt])
             edge_sample.update(targets)
             sample_edges.append(edge_sample)
 
@@ -338,6 +352,8 @@ def generate_samples(samples_num, nodes_fixed, edges_fixed, node_attr_dict, edge
         nodes_df.to_csv(nodes_file, index=False)
         edges_df.to_csv(edges_file, index=False)
         print(f'Сгенерирован сэмпл {sample_idx:06d}')
+        
+    return list(targets.keys())
 
 ####################################
 # Класс для формирования датасета с помощью PyTorch Geometric
@@ -392,7 +408,7 @@ class MyGraphDataset(InMemoryDataset):
                 dtype=torch.long
             )
 
-            # Получаем столбцы ребер по разделению: первые edge_attr_cols, остальные – целевые
+            # Разделяем параметры ребер на признаки и целевые значения
             edge_all = edges_df.drop(columns=['source', 'target'])
             edge_attr = torch.tensor(edge_all[self.edge_attr_cols].values, dtype=torch.float)
             edge_target = torch.tensor(edge_all[self.edge_target_cols].values, dtype=torch.float)
@@ -411,38 +427,92 @@ class MyGraphDataset(InMemoryDataset):
 
 def main():
     # Параметры генерации структуры
-    node_num = 40              # количество узлов
+    node_num = 100              # количество узлов
     coord_range = (0, 100)     # диапазон координат (x и y)
-    mode = 'random'              # режим формирования графа: 'tree' или 'random'
-    edge_num = node_num*2              # число ребер для режима 'random' (игнорируется для tree)
+    mode = 'tree'              # режим формирования графа: 'tree' или 'random'
+    edge_num = node_num * 2    # число ребер для режима 'random' (игнорируется для tree)
     min_edge_angle = math.radians(30)  # 30 градусов в радианах
     k_neighbors = 5
 
     # Параметры для генерации атрибутов
     node_attr_dict = {
-        'attr': (0, 10)       # для узлов генерируется параметр 'attr' в диапазоне [0, 10]
+        'attr': (0.1, 1.0)       # для узлов генерируется параметр 'attr' в диапазоне [0, 10]
     }
     edge_attr_dict = {
-        'weight': (1, 5)      # для ребер генерируется параметр 'weight' в диапазоне [1, 5]
+        'weight': (0.1, 1.0)      # для ребер генерируется параметр 'weight' в диапазоне [1, 5]
     }
 
-    samples_num = 100           # число сэмплов
-    dataset_dir = 'datasets/sum_prod'    # папка для сохранения CSV файлов
+    samples_num = 2           # число сэмплов
 
-    def edge_target_fn(node_params1, node_params2):
-        '''
-        Вычисляет целевые параметры для ребра:
-        для каждого атрибута узла вычисляется сумма и произведение значений.
-        Например, если атрибут узла называется 'attr', то возвращаются ключи 'sum' и 'prod'.
-        '''
-        targets = {}
-        targets['sum'] = node_params1['attr'] + node_params2['attr']
-        targets['prod'] = node_params1['attr'] * node_params2['attr']
-        return targets
+    # Параметры для вычисления целевых значений ребра
+    # target_mode:
+    # k_sum – сумма атрибутов в k-hop окрестности (без затухания),
+    # k_sum_att – с затуханием,
+    # k_sum_att_w – с затуханием, но при накоплении каждый вклад домножается на вес ребра, которое соединяет текущую вершину с соседом.
+    target_modes = ['k_sum', 'sum_prod']
+    # target_mode = 'k_sum_att'
+    # target_mode = 'k_sum_att_w'
+    # target_mode = 'sum_prod'
+
+    k_hop = 5         # количество шагов для окрестности
+    att_coef = 0.5
+
+    def edge_target_fn(src, tgt, node_params, adjacency, sample_edge_params=None):
+        # Внутренняя функция для обхода k-hop окрестности.
+        # Для режима 4 используется параметр use_edge_weight=True, при этом для каждого перехода
+        # вес ребра извлекается из sample_edge_params по ключу (min(вершина, сосед), max(вершина, сосед)).
+        def get_k_hop_sum(node_id, k, attenuation=False, coef=0.5, use_edge_weight=False, edge_weight_dict=None):
+            # visited хранит для каждой вершины кортеж (расстояние, вес ребра, с которым она была достигнута)
+            visited = {node_id: (0, None)}
+
+            queue = [node_id]
+            total = 0.0
+            while queue:
+                current = queue.pop(0)
+                d, _ = visited[current]
+                if d >= k:
+                    continue
+                for neighbor in adjacency[current]:
+                    if neighbor not in visited:
+                        w = 1.0
+                        if use_edge_weight and edge_weight_dict is not None:
+                            edge_key = tuple(sorted((current, neighbor)))
+                            if edge_key in edge_weight_dict:
+                                w = edge_weight_dict[edge_key]['weight']
+                        visited[neighbor] = (d + 1, w)
+                        factor = (coef ** d) if attenuation else 1.0
+                        total += node_params[neighbor]['attr'] * factor * w
+                        queue.append(neighbor)
+            return total
+
+        ret_dict = dict()
+        if 'k_sum' in target_modes:
+            for k in range(k_hop+1):
+                sum_src = get_k_hop_sum(src, k, attenuation=False)
+                sum_tgt = get_k_hop_sum(tgt, k, attenuation=False)
+                target_value = sum_src + sum_tgt
+                ret_dict[f'{k}_sum'] =  target_value
+        if 'k_sum_att' in target_modes:
+            for k in range(k_hop+1):
+                sum_src = get_k_hop_sum(src, k, attenuation=True, coef=att_coef)
+                sum_tgt = get_k_hop_sum(tgt, k, attenuation=True, coef=att_coef)
+                target_value = sum_src + sum_tgt
+                ret_dict[f'{k}_att_sum'] =  target_value
+        if 'k_sum_att_w' in target_modes:
+            for k in range(k_hop+1):
+                sum_src = get_k_hop_sum(src, k, attenuation=True, coef=att_coef, use_edge_weight=True, edge_weight_dict=sample_edge_params)
+                sum_tgt = get_k_hop_sum(tgt, k, attenuation=True, coef=att_coef, use_edge_weight=True, edge_weight_dict=sample_edge_params)
+                target_value = sum_src + sum_tgt
+                ret_dict[f'{k}_att_w_sum'] =  target_value
+        if 'sum_prod' in target_modes:
+            a = node_params[src]['attr']
+            b = node_params[tgt]['attr']
+            ret_dict['sum'] = a + b
+            ret_dict['prod'] = a * b
+        return ret_dict
 
     node_attr_cols = ['x', 'y', 'attr']
     edge_attr_cols = ['weight']
-    edge_target_cols = ['sum', 'prod']
 
     # Генерация фиксированной структуры графа
     nodes_fixed = generate_nodes(node_num, coord_range, min_distance=5)
@@ -453,17 +523,19 @@ def main():
     else:
         raise ValueError('Некорректный режим. Выберите "tree" или "random".')
 
-    # Вызов функции сортировки ребер после генерации структуры графа
     edges_fixed = sort_edges(edges_fixed)
 
     print('Структура графа сгенерирована:')
     print('Количество узлов:', len(nodes_fixed))
     print('Количество ребер:', len(edges_fixed))
 
-    # Генерация сэмплов (у каждого свои параметры, структура общая)
-    generate_samples(samples_num, nodes_fixed, edges_fixed, node_attr_dict, edge_attr_dict, edge_target_fn, dataset_dir)
+    dataset_dir = f'datasets/{'__'.join(target_modes)}__{samples_num}s'    # папка для сохранения CSV файлов
 
-    # Создание датасета PyTorch Geometric.
+    # Генерация сэмплов (общая структура, но у каждого свои параметры)
+    edge_target_cols = generate_samples(samples_num, nodes_fixed, edges_fixed, node_attr_dict, edge_attr_dict, edge_target_fn, dataset_dir)
+    print(f'edge_target_cols: {edge_target_cols}')
+    
+    # Создание датасета PyTorch Geometric
     dataset = MyGraphDataset(root=dataset_dir,
                              node_attr_cols=node_attr_cols,
                              edge_attr_cols=edge_attr_cols,
