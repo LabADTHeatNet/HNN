@@ -11,6 +11,13 @@
     ],
     "configurations": [
         {
+            "name": "train_EdgeRegressorNetwork.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "train_EdgeRegressorNetwork.py",
+            "console": "integratedTerminal"
+        },
+        {
             "name": "dataset_pp.py",
             "type": "debugpy",
             "request": "launch",

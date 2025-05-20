@@ -19,7 +19,10 @@ class NodeEncoder(nn.Module):
             self.convs.append(gnn.GATv2Conv(in_c, hidden_channels, heads=heads, residual=True, add_self_loops=True))
             self.norms.append(nn.LayerNorm(hidden_channels * heads))
         # JumpingKnowledge агрегирует выходы всех слоёв (concat)
-        self.jump = gnn.JumpingKnowledge(mode=jump_mode)
+        if jump_mode is None:
+            self.jump = None
+        else:
+            self.jump = gnn.JumpingKnowledge(mode=jump_mode)
 
     def forward(self, x, edge_index):
         x_list = []
@@ -28,7 +31,8 @@ class NodeEncoder(nn.Module):
             x = norm(x)                       # Нормализация
             x = F.relu(x)                     # Активация
             x_list.append(x)                  # Сохраняем выход слоя
-        x = self.jump(x_list)                 # Объединяем выходы всех слоёв
+        if self.jump is not None:
+            x = self.jump(x_list)                 # Объединяем выходы всех слоёв
         return x
 
 ##############################################

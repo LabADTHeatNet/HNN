@@ -40,17 +40,38 @@ if __name__ == '__main__':
         seed=42  # Фиксация случайности для воспроизводимости
     )
 
+    # # === default ===
+    # exp_mode = None
+    # fp = 'data.pt'
+    # edge_attr = ['dP']
+
+    # === eaL ===
+    exp_mode = 'eaL'
+    fp = 'data_eaL.pt'
+    edge_attr = ['l']
+
+    # # === eaLdPQ ===
+    # exp_mode = 'eaLdpQ'
+    # fp = 'data_eaLdPQ.pt'
+    # edge_attr = ['l', 'dP', 'Q']
+
+    # # === eaLdP ===
+    # exp_mode = 'eaLdp'
+    # fp = 'data_eaLdP.pt'
+    # edge_attr = ['l', 'dP']
+
     # Настройки датасета
     dataset = dict(
         datasets_dir=osp.join(root_dir, 'datasets'),  # Путь к данным
         name='database_Yasn_Q',  # Имя датасета
         load=False,  # Загружать предобработанный датасет из файла
-        fp='data.pt',  # Файл предобработанного датасета
+        fp=fp,  # Файл предобработанного датасета
         node_attr=['pos_x', 'pos_y', 'P', 'types'],  # Атрибуты узлов
-        edge_attr=['dP'],  # Атрибуты ребер
+        edge_attr=edge_attr,  # Атрибуты ребер
         # edge_label=['d', 'vel'],  # Целевые метки ребер
         edge_label=['d'],  # Целевые метки ребер
-        scaler_fn=None,  # Метод нормализации данных (None/MinMaxScaler/RobustScaler)
+        # edge_label=['mod'],  # Целевые метки ребер
+        # scaler_fn=None,  # Метод нормализации данных (None/MinMaxScaler/RobustScaler)
         num_samples=None  # Ограничение количества выборок (None для всех)
     )
 
@@ -63,15 +84,25 @@ if __name__ == '__main__':
     # Параметры обучения
 
     init_lr = 1e-3
-    final_lr = 1e-4
-    epochs_num = 100
+    final_lr = 1e-6
+    epochs_num = 2000
 
     # Настройки оптимизатора
+    # optimizer = dict(
+    #     name='AdamW',  # Название оптимизатора
+    #     kwargs=dict(
+    #         lr=init_lr,  # Скорость обучения
+    #         weight_decay=1e-3  # L2-регуляризация
+    #     )
+    # )
+
     optimizer = dict(
-        name='AdamW',  # Название оптимизатора
+        name='RAdam',  # Название оптимизатора
         kwargs=dict(
             lr=init_lr,  # Скорость обучения
-            weight_decay=1e-5  # L2-регуляризация
+            betas=(0.9, 0.99),  # стандартные моменты
+            eps=1e-8,            # небольшая цифра для числовой стабильности
+            weight_decay=1e-6    # чуть поменьше, чем у AdamW — чтобы не переточить сеть
         )
     )
 
@@ -84,16 +115,32 @@ if __name__ == '__main__':
         )
     )
 
+    # scheduler = dict(
+    #     name='CosineAnnealingLR',  # Стратегия изменения lr
+    #     kwargs=dict(
+    #         T_max=epochs_num,
+    #     )
+    # )
+
     # Функция потерь
     criterion = dict(
-        name='MSELoss',  # Среднеквадратичная ошибка
+        name='MSELoss',  # 'MSELoss',  # Среднеквадратичная ошибка
         kwargs=dict()
     )
+
+    # # Функция потерь
+    # criterion = dict(
+    #     name='FocalRegressionLoss',
+    #     kwargs=dict(
+    #         alpha=2.0,
+    #         gamma=2.0
+    #     )
+    # )
 
     # Параметры обучения
     train = dict(
         num_epochs=epochs_num,  # Количество эпох
-        score_metric='MSE'  # Метрика для выбора лучшей модели
+        score_metric='Loss'  # Метрика для выбора лучшей модели
     )
 
     node_hidden_channels = 64
@@ -126,9 +173,11 @@ if __name__ == '__main__':
     model_list.extend(EdgeRegressorNetwork_Attr_models_list)
 
     # Параметры для перебора: размер батча и методы нормализации
-    batch_size_list = [16]
+    batch_size_list = [64]
     # scalers_list = ['MinMaxScaler', 'RobustScaler']
+    # scalers_list = ['MinMaxScaler']
     scalers_list = ['StandardScaler']
+    # scalers_list = [None]
 
     # Формирование всех комбинаций конфигураций
     cfg_list = [
@@ -157,15 +206,20 @@ if __name__ == '__main__':
         if debug_run:
             run_clear_ml = False
             cfg['utils']['out_dir'] += '_test'
-            cfg['dataset']['num_samples'] = 60  # Ограничение данных
-            cfg['train']['num_epochs'] = 10  # Сокращение эпох
-            num_samples_to_draw = 0  # Отключение визуализации
+            cfg['dataset']['load'] = False
+            cfg['dataset']['num_samples'] = 600  # Ограничение данных
+            cfg['train']['num_epochs'] = 100  # Сокращение эпох
+            num_samples_to_draw = 5  # Отключение визуализации
 
         # Формирование уникальных имен экспериментов
+
         exp_params = [
             f"{cfg['dataset']['scaler_fn']}",
             f"{cfg['model']['name']}",
         ]
+
+        if exp_mode is not None:
+            exp_params.insert(0, exp_mode)
 
         #  Добавление параметра размера батча
         exp_params.append(f"bs{cfg['dataloader']['batch_size']}")
@@ -180,6 +234,8 @@ if __name__ == '__main__':
 
         # Запуск эксперимента
         exp_dir_path = osp.join(cfg['utils']['out_dir'], exp_name)
+        if cfg['dataset']['load'] is False:
+            cfg['dataset']['fp'] = osp.join(exp_dir_path, 'data.pt')
         exp(cfg,
             project_name='HeatNet',
             run_clear_ml=run_clear_ml,

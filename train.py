@@ -136,7 +136,8 @@ if __name__ == '__main__':
     # edge_fc_layer_list = [8*2**i for i in range(6)]  # Слои для ребер
     # out_fc_layer_list = [32*4**i for i in list(reversed(range(4)))]  # Выходные слои
 
-    node_conv_layer_list = [128] * 32  # Слои для конволюций узлов
+    # node_conv_layer_list = [256] * 32  # Слои для конволюций узлов
+    node_conv_layer_list = [256] * 2  # Слои для конволюций узлов
     edge_fc_layer_list = [2*2**(2*i+2) for i in range(4)]  # Слои для ребер
     out_fc_layer_list = [2*2**(3*i+1) for i in list(reversed(range(3)))]  # Выходные слои
 
@@ -186,8 +187,8 @@ if __name__ == '__main__':
     # model_list.extend(msegcn_models_list)  # MultiScaleEdgeGCN
 
     # Параметры для перебора: размер батча и методы нормализации
-    batch_size_list = [128, 64, 32]
-    scalers_list = ['MinMaxScaler', 'RobustScaler']
+    batch_size_list = [128, 64, 32, 16]
+    scalers_list = ['MinMaxScaler', 'StandartScaler']
 
     # Формирование всех комбинаций конфигураций
     cfg_list = [
@@ -218,7 +219,7 @@ if __name__ == '__main__':
             cfg['utils']['out_dir'] += '_test'
             cfg['dataset']['num_samples'] = 1024  # Ограничение данных
             cfg['train']['num_epochs'] = 10  # Сокращение эпох
-            num_samples_to_draw = 1  # Отключение визуализации
+            num_samples_to_draw = 10
 
         # Формирование уникальных имен экспериментов
         exp_params = [
