@@ -3,7 +3,7 @@ import os
 import os.path as osp
 import torch
 
-from exp import test_exp, test_exp_cls
+from exp import test_exp
 from src.utils import get_str_timestamp
 
 CASCADE = False
@@ -39,7 +39,7 @@ exp_dir_path_list = [
     # 'out_Yasn_Q/StandardScaler_EdgeRegressorNetwork_Attr_bs16_20250516_184401',
     'out_Yasn_Q/StandardScaler_EdgeRegressorNetwork_Attr_bs64_20250520_144527',  # best default
     # 'out_Yasn_Q/eaL_StandardScaler_EdgeRegressorNetwork_Attr_bs256_20250519_173355',
-    'out_Yasn_Q/eaLdPQ_StandardScaler_EdgeRegressorNetwork_Attr_bs64_20250520_103717',
+    # 'out_Yasn_Q/eaLdPQ_StandardScaler_EdgeRegressorNetwork_Attr_bs64_20250520_103717',
     # 'out_Yasn_Q/eaLdp_StandardScaler_EdgeRegressorNetwork_Attr_bs64_20250520_105029',
 ]
 

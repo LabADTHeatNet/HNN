@@ -50,7 +50,18 @@ def load_dataframes(files_list):
         # edges_df['mod'] = edges_df['moded']
         # edges_df.loc[edges_df['mod'] == 1, "mod"] = 0
         # edges_df.loc[edges_df['mod'] == 2, "mod"] = 1
+        
+        nodes_df['types_def'] = nodes_df['types'] == 0
+        nodes_df['types_usr'] = nodes_df['types'] == 1
+        nodes_df['types_src'] = nodes_df['types'] == 2
 
+        # создаём отображение id → Q
+        q_map = nodes_df.set_index('id')['Q']
+        # добавляем dQ прямо по map
+        edges_df['Q_out'] = edges_df['id_out'].map(q_map)
+        edges_df['Q_in'] = edges_df['id_in'].map(q_map)
+        edges_df['dQ'] = edges_df['id_out'].map(q_map) - edges_df['id_in'].map(q_map)
+        
         # Исправление пропущенных идентификаторов узлов (например, id=129)
         edges_df = edges_df[edges_df.id_in != 129]
         edges_df = edges_df[edges_df.id_out != 129]

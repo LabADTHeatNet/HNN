@@ -1,1 +1,1 @@
-sudo -u ivan bash -c 'tmux new-session -d -s "TB" /home/ivan/miniconda3/envs/seg/bin/python /home/ivan/miniconda3/envs/seg/lib/python3.10/site-packages/tensorboard/main.py  --logdir /home/ivan/python/HeatNet --host 0.0.0.0 --port 6007 --load_fast false' &
+sudo -u ivan bash -c 'tmux new-session -d -s "TB_HNN" /home/ivan/miniconda3/envs/seg/bin/python /home/ivan/miniconda3/envs/seg/lib/python3.10/site-packages/tensorboard/main.py  --logdir /home/ivan/python/HeatNet/out_Yasn_Q --host 0.0.0.0 --port 6008 --load_fast false' &

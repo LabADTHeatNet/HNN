@@ -1,5 +1,4 @@
 from pathlib import Path
-import os.path as osp
 import importlib
 import copy
 import json
@@ -11,10 +10,7 @@ import torch
 from torchinfo import summary
 
 from torch.utils.tensorboard import SummaryWriter
-from clearml import (
-    Task,
-    OutputModel
-)
+
 
 import matplotlib.pyplot as plt
 
@@ -41,6 +37,12 @@ def _log_metrics(metrics, suffix, writer, epoch):
 
 
 def exp(cfg, project_name='HeatNet', run_clear_ml=False, log_dir=None):
+    if run_clear_ml:
+        from clearml import (
+            Task,
+            OutputModel
+        )
+
     """Основная функция запуска эксперимента: обучение и валидация модели."""
     # Создание директории для логов
     if log_dir is None:
@@ -83,9 +85,6 @@ def exp(cfg, project_name='HeatNet', run_clear_ml=False, log_dir=None):
         )
     model = create_model()
     model = model.to(device)
-
-    # state = torch.load('/home/ivan/python/heatnet/out_Yasn_Q/StandardScaler_EdgeRegressorNetwork_Attr_bs16_20250516_184401/best_model.pth', weights_only=True)
-    # model.load_state_dict(state)
 
     # Инициализация оптимизатора и планировщика
     optimizer_fn = getattr(importlib.import_module('torch.optim'), cfg['optimizer']['name'])
@@ -198,11 +197,11 @@ def exp(cfg, project_name='HeatNet', run_clear_ml=False, log_dir=None):
         task.close()  # Завершение задачи ClearML
 
 
-def test_exp(exp_dir_path, out_dir_path, num_samples_to_draw=None):
+def test_exp(exp_dir_path, results_dir_path, num_samples_to_draw=None):
     """Тестирование модели и сохранение результатов."""
     exp_dir_path = Path(exp_dir_path)
-    out_dir_path = Path(out_dir_path)
-    out_dir_path.mkdir(parents=True, exist_ok=True)
+    results_dir_path = Path(results_dir_path)
+    results_dir_path.mkdir(parents=True, exist_ok=True)
 
     # 1) Загрузка конфигурации
     with open(exp_dir_path / 'params.json', 'r') as f:
@@ -363,8 +362,8 @@ def test_exp(exp_dir_path, out_dir_path, num_samples_to_draw=None):
         edges_df['dev'] = true_dev
         edges_df['pred_dev'] = pred_dev
         edges_df['pred_moded'] = pm
-        out_nodes_path = out_dir_path / Path(d.nodes_fp).with_suffix('.csv').name
-        out_edges_path = out_dir_path / Path(d.edges_fp).with_suffix('.csv').name
+        out_nodes_path = results_dir_path / Path(d.nodes_fp).with_suffix('.csv').name
+        out_edges_path = results_dir_path / Path(d.edges_fp).with_suffix('.csv').name
         nodes_df.to_csv(out_nodes_path, index=False)
         edges_df.to_csv(out_edges_path, index=False)
 
@@ -381,13 +380,13 @@ def test_exp(exp_dir_path, out_dir_path, num_samples_to_draw=None):
                 edge_data_from_label=True,
                 edge_color_idx=-1,
                 edge_color_label='d',
-                additional_node_label_idx=0,
+                additional_node_label_idx=None,
                 figsize=figsize,
                 no_draw=False,
                 font_size=10,
                 arrows=True,
                 arrowstyle='-|>',
-                alt_pos=True
+                alt_pos=False
             )
 
         if num_samples_to_draw and idx < num_samples_to_draw:
@@ -395,7 +394,7 @@ def test_exp(exp_dir_path, out_dir_path, num_samples_to_draw=None):
                 d,
                 pos_idxs=2,
             )
-            fig.savefig(out_dir_path / f"{sample_name}.png", bbox_inches='tight')
+            fig.savefig(results_dir_path / f"{sample_name}.png", bbox_inches='tight')
             plt.close(fig)
 
         # f) graph-level классификация
@@ -537,10 +536,15 @@ def test_exp(exp_dir_path, out_dir_path, num_samples_to_draw=None):
     ax.hist(en_df['true_dev'], bins=bins, color='red',   alpha=0.5, label='N')
     ax.hist(ed_df['true_dev'], bins=bins, color='green', alpha=0.5, label='D')
 
-    ax.set_xlabel('true_dev')
-    ax.set_ylabel('Frequency')
-    ax.set_title('Распределение true_dev по классам')
+    ax.set_xlabel('Величина отклонения [%]')
+    ax.set_ylabel('Кол-во примеров')
+    ax.set_title('Распределение отклонения в графах с дефектами')
     ax.legend()
-    
-    plt.show()
+
+    plt.grid()
+    plt.tight_layout()
+    plt.savefig('hist.png')
+
+    # plt.show()
+    plt.close()
 
