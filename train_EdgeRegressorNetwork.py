@@ -85,15 +85,15 @@ if __name__ == '__main__':
     dataloader = dict(
         train_ratio=0.7,  # Доля обучающих данных
         val_ratio=0.15,  # Доля валидационных данных
-        batch_size=16,  # Размер батча (будет задан позже)
+        batch_size=64,  # Размер батча
     )
 
     # Параметры модели
-    node_hidden_channels = 128
-    num_node_layers = 8
-    edge_hidden_channels = 128
-    num_edge_layers = 8
-    heads = 8
+    node_hidden_channels = 64
+    num_node_layers = 4
+    edge_hidden_channels = 64
+    num_edge_layers = 4
+    heads = 4
     dropout = 0.0
     jump_mode = 'cat'
 
