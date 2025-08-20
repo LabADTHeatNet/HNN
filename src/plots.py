@@ -110,11 +110,20 @@ def draw_data(data,
 
     for moded_idx in moded_idx_list:
         moded_in_out = edge_index[..., moded_idx].squeeze()
-        if edge_moded[moded_idx] == 1:
-            color = 'orange'
-        elif edge_moded[moded_idx] == 2:
-            color = 'red'
+        # if edge_moded[moded_idx] == 1:
+        #     color = 'orange'
+        # elif edge_moded[moded_idx] == 2:
+        #     color = 'red'
+        # else:
+        #     color = 'grey'
 
+        if edge_moded[moded_idx] > 1.05:
+            color = 'red'
+        elif edge_moded[moded_idx] > 1:
+            color = 'orange'
+        else:
+            color = 'grey'
+        
         log_str_list.append(f'moded: edge {moded_idx}, type = {
                             edge_moded[moded_idx]}, nodes {moded_in_out}')
 

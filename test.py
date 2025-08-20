@@ -2,6 +2,8 @@
 import os
 import os.path as osp
 import torch
+import json
+from pathlib import Path
 
 from exp import test_exp
 from src.utils import get_str_timestamp
@@ -35,14 +37,23 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # ]
 
 # === Experiments with addition edge attributes ===
+# exp_dir_path_list = [
+#     # 'out_Yasn_Q/StandardScaler_EdgeRegressorNetwork_Attr_bs16_20250516_184401',
+#     'out_Yasn_Q/StandardScaler_EdgeRegressorNetwork_Attr_bs64_20250520_144527',  # best default
+#     # 'out_Yasn_Q/eaL_StandardScaler_EdgeRegressorNetwork_Attr_bs256_20250519_173355',
+#     # 'out_Yasn_Q/eaLdPQ_StandardScaler_EdgeRegressorNetwork_Attr_bs64_20250520_103717',
+#     # 'out_Yasn_Q/eaLdp_StandardScaler_EdgeRegressorNetwork_Attr_bs64_20250520_105029',
+# ]
+
 exp_dir_path_list = [
-    # 'out_Yasn_Q/StandardScaler_EdgeRegressorNetwork_Attr_bs16_20250516_184401',
-    'out_Yasn_Q/StandardScaler_EdgeRegressorNetwork_Attr_bs64_20250520_144527',  # best default
-    # 'out_Yasn_Q/eaL_StandardScaler_EdgeRegressorNetwork_Attr_bs256_20250519_173355',
-    # 'out_Yasn_Q/eaLdPQ_StandardScaler_EdgeRegressorNetwork_Attr_bs64_20250520_103717',
-    # 'out_Yasn_Q/eaLdp_StandardScaler_EdgeRegressorNetwork_Attr_bs64_20250520_105029',
+    'out_Termo/Termo_StandardScaler_EdgeRegressorNetwork_Attr_bs32_20250814_140232',
 ]
 
 for exp_dir_path in exp_dir_path_list:
     out_dir_path = osp.join(exp_dir_path, 'results')
-    test_exp(exp_dir_path, out_dir_path, num_samples_to_draw=0)
+    # 1) Загрузка конфигурации
+    with open(Path(exp_dir_path) / 'params.json', 'r') as f:
+        cfg = json.load(f)
+    cfg['dataset']['fp'] = 'data_Termo_Heat_full.pt'
+    test_exp(exp_dir_path, out_dir_path, cfg, num_samples_to_draw=0)
+# %%

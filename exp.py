@@ -58,7 +58,7 @@ def exp(cfg, project_name='HeatNet', run_clear_ml=False, log_dir=None):
     device = torch.device(cfg['utils']['device'])  # Устройство для вычислений (GPU/CPU)
 
     # Подготовка данных
-    dataset, scalers, train_loader, val_loader, test_loader = prepare_data(cfg['dataset'], cfg['dataloader'], cfg['utils']['seed'])
+    dataset, scalers, train_loader, val_loader, test_loader, ideal_dataset = prepare_data(cfg['dataset'], cfg['dataloader'], cfg['utils']['seed'])
 
     # Пример вывода информации о батче
     for batch in train_loader:
@@ -197,21 +197,17 @@ def exp(cfg, project_name='HeatNet', run_clear_ml=False, log_dir=None):
         task.close()  # Завершение задачи ClearML
 
 
-def test_exp(exp_dir_path, results_dir_path, num_samples_to_draw=None):
+def test_exp(exp_dir_path, results_dir_path, cfg, num_samples_to_draw=None):
     """Тестирование модели и сохранение результатов."""
     exp_dir_path = Path(exp_dir_path)
     results_dir_path = Path(results_dir_path)
     results_dir_path.mkdir(parents=True, exist_ok=True)
 
-    # 1) Загрузка конфигурации
-    with open(exp_dir_path / 'params.json', 'r') as f:
-        cfg = json.load(f)
     device = torch.device(cfg['utils']['device'])
 
     # 2) Подготовка данных
     cfg['dataset']['load'] = True
-    # cfg['dataset']['fp'] = osp.join(exp_dir_path, 'data.pt')
-    dataset, scalers, _, _, test_loader = prepare_data(
+    dataset, scalers, _, _, test_loader, ideal_dataset = prepare_data(
         cfg['dataset'],
         cfg['dataloader'],
         cfg['utils']['seed']
@@ -288,26 +284,36 @@ def test_exp(exp_dir_path, results_dir_path, num_samples_to_draw=None):
                 all_data.append(d.cpu())
 
     # 9) Вычисляем идеальные диаметры для каждого ребра (где edge_moded==0)
-    E = all_data[0].edge_label.shape[0]
-    sum_dia = torch.zeros(E)
-    count_dia = torch.zeros(E)
-    for d in tqdm.tqdm(all_data, desc="Обработка классов ребер"):
-        _, edges_df = data_to_tables(
-            d,
-            node_attr=cfg['dataset']['node_attr'],
-            edge_attr=cfg['dataset']['edge_attr'],
-            edge_label=cfg['dataset']['edge_label'],
-            scalers=scalers,
-            edge_label_pred=[f"{v}_pred" for v in cfg['dataset']['edge_label']]
-        )
-        true_vals = torch.tensor(
-            edges_df[cfg['dataset']['edge_label']].values,
-            dtype=torch.float
-        )
-        mask0 = (d.edge_moded == 0).squeeze()
-        sum_dia[mask0] += true_vals[mask0, 0]
-        count_dia[mask0] += 1
-    ideal_dia = (sum_dia / count_dia.clamp(min=1)).numpy()
+    # E = all_data[0].edge_label.shape[0]
+    # sum_dia = torch.zeros(E)
+    # count_dia = torch.zeros(E)
+    # for d in tqdm.tqdm(all_data, desc="Обработка классов ребер"):
+    #     _, edges_df = data_to_tables(
+    #         d,
+    #         node_attr=cfg['dataset']['node_attr'],
+    #         edge_attr=cfg['dataset']['edge_attr'],
+    #         edge_label=cfg['dataset']['edge_label'],
+    #         scalers=scalers,
+    #         edge_label_pred=[f"{v}_pred" for v in cfg['dataset']['edge_label']]
+    #     )
+    #     true_vals = torch.tensor(
+    #         edges_df[cfg['dataset']['edge_label']].values,
+    #         dtype=torch.float
+    #     )
+    #     mask0 = (d.edge_moded == 0).squeeze()
+    #     sum_dia[mask0] += true_vals[mask0, 0]
+    #     count_dia[mask0] += 1
+    # ideal_dia = (sum_dia / count_dia.clamp(min=1)).numpy()
+
+    def get_t_outside(sample):
+        return int(sample.global_attrs[0][0].item())
+    
+    ideal_data_dict = dict()
+    for sample in ideal_dataset:
+        ideal_data_dict[get_t_outside(sample)] = sample
+
+    def get_ideal_sample(sample):
+        return ideal_data_dict.get(get_t_outside(sample), None)
 
     # 10) Переменные для graph-level метрик
     nn_list = []         # N | N
@@ -315,21 +321,20 @@ def test_exp(exp_dir_path, results_dir_path, num_samples_to_draw=None):
     dn_list = []         # D | N
     dd_list = []         # D | D (correct)
     dd_wrong_list = []   # D | D (wrong)
-
-    # 11) Обработка каждого примера
-    for idx, d in enumerate(tqdm.tqdm(all_data, desc="Обработка примеров")):
-        sample_name = Path(d.nodes_fp).stem
-
-        # a) получаем таблицы
+    def get_tables(d, with_pred=True):
+        """Получает таблицы узлов и ребер из графа."""
         nodes_df, edges_df = data_to_tables(
             d,
             node_attr=cfg['dataset']['node_attr'],
             edge_attr=cfg['dataset']['edge_attr'],
             edge_label=cfg['dataset']['edge_label'],
             scalers=scalers,
-            edge_label_pred=[f"{v}_pred" for v in cfg['dataset']['edge_label']]
+            edge_label_pred=[f"{v}_pred" for v in cfg['dataset']['edge_label']] if with_pred else None
         )
-
+        return nodes_df, edges_df
+    
+    def get_denormed_data(d, nodes_df, edges_df, with_pred=True):
+        """Получает денормализованные данные из графа."""
         denorm = d.clone().cpu()
         denorm.x = torch.tensor(
             nodes_df[cfg['dataset']['node_attr']].values, dtype=torch.float)
@@ -337,33 +342,62 @@ def test_exp(exp_dir_path, results_dir_path, num_samples_to_draw=None):
             edges_df[cfg['dataset']['edge_attr']].values, dtype=torch.float)
         denorm.edge_label = torch.tensor(
             edges_df[cfg['dataset']['edge_label']].values, dtype=torch.float)
-        denorm.edge_label_pred = torch.tensor(
-            edges_df[[f'{v}_pred' for v in cfg['dataset']['edge_label']]].values,
-            dtype=torch.float
-        )
+        if with_pred:
+            denorm.edge_label_pred = torch.tensor(
+                edges_df[[f'{v}_pred' for v in cfg['dataset']['edge_label']]].values,
+                dtype=torch.float
+            )
+        return denorm
+
+    # 11) Обработка каждого примера
+    for idx, d in enumerate(tqdm.tqdm(all_data, desc="Обработка примеров")):
+        sample_name = Path(d.nodes_fp).stem
+
+        # a) получаем таблицы
+        nodes_df, edges_df = get_tables(d)
+        denorm = get_denormed_data(d, nodes_df, edges_df)
         d = denorm
 
         # b) true и pred значения
         true_vals = d.edge_label[..., 0].numpy()
         pred_vals = d.edge_label_pred[..., 0].numpy()
-        true_dev = np.abs(true_vals - ideal_dia) / ideal_dia * 100.0
-        pred_dev = np.abs(pred_vals - ideal_dia) / ideal_dia * 100.0
+        
+        ideal_d = get_ideal_sample(d)
+        if ideal_d is not None:
+            ideal_nodes_df, ideal_edges_df = get_tables(ideal_d, with_pred=False)
+            ideal_denorm = get_denormed_data(ideal_d, ideal_nodes_df, ideal_edges_df, with_pred=False)
+            ideal_vals = ideal_denorm.edge_label[..., 0].numpy()
+            
+            true_dev = np.abs(true_vals - ideal_vals) / ideal_vals 
+            pred_dev = np.abs(pred_vals - ideal_vals) / ideal_vals
+        else:
+            true_dev = np.zeros_like(true_vals, dtype=np.float32)
+            pred_dev = np.zeros_like(pred_vals, dtype=np.float32)
 
         # true_dev = np.abs(true_vals - ideal_dia)
         # pred_dev = np.abs(pred_vals - ideal_dia)
 
         # c) edge-level модед
-        pm = np.zeros_like(pred_dev, dtype=int)
-        # pm[pred_dev > 5.0] = 1
-        pm[pred_dev > 5.0] = 2
+        pred_moded = np.zeros_like(pred_dev, dtype=int)
+        pred_moded[(pred_dev > 1.01) & (pred_dev <= 5.0)] = 1
+        pred_moded[pred_dev > 5.0] = 2
+        
+        true_moded = np.zeros_like(true_dev, dtype=int)
+        true_moded[(true_dev > 1.01) & (true_dev <= 5.0)] = 1
+        true_moded[true_dev > 5.0] = 2
 
         # d) сохраняем CSV
         edges_df['moded'] = d.edge_moded.numpy()
         edges_df['dev'] = true_dev
         edges_df['pred_dev'] = pred_dev
-        edges_df['pred_moded'] = pm
-        out_nodes_path = results_dir_path / Path(d.nodes_fp).with_suffix('.csv').name
-        out_edges_path = results_dir_path / Path(d.edges_fp).with_suffix('.csv').name
+        edges_df['pred_moded'] = pred_moded
+
+        sample_dir = Path('.').joinpath(*(Path(d.nodes_fp).parts)[2:-1])
+        sample_results_dir_path = results_dir_path / sample_dir
+        sample_results_dir_path.mkdir(parents=True, exist_ok=True)
+
+        out_nodes_path = sample_results_dir_path / Path(d.nodes_fp).with_suffix('.csv').name
+        out_edges_path = sample_results_dir_path / Path(d.edges_fp).with_suffix('.csv').name
         nodes_df.to_csv(out_nodes_path, index=False)
         edges_df.to_csv(out_edges_path, index=False)
 
@@ -394,12 +428,12 @@ def test_exp(exp_dir_path, results_dir_path, num_samples_to_draw=None):
                 d,
                 pos_idxs=2,
             )
-            fig.savefig(results_dir_path / f"{sample_name}.png", bbox_inches='tight')
+            fig.savefig(sample_results_dir_path / f"{sample_name}.png", bbox_inches='tight')
             plt.close(fig)
 
         # f) graph-level классификация
-        true_idxs = np.where(d.edge_moded.numpy() == 2)[0].tolist()
-        pred_idxs = np.where(pm == 2)[0].tolist()
+        true_idxs = np.where(true_moded == 2)[0].tolist()
+        pred_idxs = np.where(pred_moded == 2)[0].tolist()
 
         def fmt(i):
             u, v = int(d.edge_index[0, i]), int(d.edge_index[1, i])

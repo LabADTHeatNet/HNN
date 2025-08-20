@@ -12,3 +12,5 @@ __pycache__/
 /src/models/test_models/
 /datasets_old/
 /results*/
+bkp/
+out_Termo*/

@@ -105,12 +105,15 @@ class EdgeRegressorNetwork_Attr(nn.Module):
                  heads=4,
                  dropout=0.1,
                  out_dim=1,
-                 jump_mode='cat'):
+                 jump_mode='cat',
+                 in_global_dim=0
+                 ):
         super().__init__()
         self.edge_in_channels = in_edge_dim
+        self.in_global_dim = in_global_dim
         # Кодировщик узлов (GAT + JK)
         self.jump_mode = jump_mode
-        self.node_encoder = NodeEncoder(in_node_dim, node_hidden_channels, num_node_layers, heads=1, jump_mode=self.jump_mode)
+        self.node_encoder = NodeEncoder(in_node_dim + in_global_dim, node_hidden_channels, num_node_layers, heads=1, jump_mode=self.jump_mode)
         node_repr_dim = num_node_layers * node_hidden_channels  # Из-за JK (concat всех слоёв)
 
         # Инициализация признаков рёбер из признаков узлов (h_u ⊕ h_v)
@@ -118,7 +121,7 @@ class EdgeRegressorNetwork_Attr(nn.Module):
         node_repr_dim = node_hidden_channels
         if self.jump_mode == 'cat':
             node_repr_dim = num_node_layers * node_hidden_channels   # Из-за JK (concat всех слоёв)
-        edge_init_repr_dim = 2 * node_repr_dim + self.edge_in_channels
+        edge_init_repr_dim = 2 * node_repr_dim + self.edge_in_channels + in_global_dim
 
         # self.edge_init = nn.Linear(2 * node_repr_dim, edge_hidden_channels)
         self.edge_init = nn.Sequential(
@@ -127,7 +130,7 @@ class EdgeRegressorNetwork_Attr(nn.Module):
             nn.Dropout(dropout),
             nn.Linear(edge_hidden_channels, edge_hidden_channels)
         )
-        
+
         # Итеративные attention-обновления рёбер
         self.edge_attention_layers = nn.ModuleList([
             EdgeAttentionLayerFast(edge_hidden_channels, heads=heads, dropout=dropout)
@@ -142,15 +145,30 @@ class EdgeRegressorNetwork_Attr(nn.Module):
         )
 
     def forward(self, data):
-        x, edge_index = data.x, data.edge_index
-        
+        x, edge_index, gp = data.x, data.edge_index, data.global_attrs
+
+        # --- 1. расширяем t_out до узлов -----
+        if hasattr(data, 'batch'):               # батч графов
+            gp_per_node = gp[data.batch]       # [N, global_dim]
+        else:                                    # одиночный граф
+            gp_per_node = gp.expand(x.size(0), -1)
+
+        x = torch.cat([x, gp_per_node], dim=-1)   # [N, in_node_dim+global_dim]
         node_features = self.node_encoder(x, edge_index)  # [N, node_repr_dim]
 
         # Формируем признаки рёбер: h_u ⊕ h_v
         src, dst = edge_index
-        edge_init_feat = torch.cat([node_features[src], node_features[dst]], dim=-1)
-        if self.edge_in_channels != 0:
-            edge_init_feat = torch.cat([edge_init_feat, data.edge_attr], dim=-1)
+        if hasattr(data, 'batch'):
+            edge_batch = data.batch[src]       # тот же граф, что и src-узел
+            gp_per_edge = gp[edge_batch]       # [E, global_dim]
+        else:
+            gp_per_edge = gp.expand(src.size(0), -1)
+
+        edge_init_feat = torch.cat([
+            node_features[src], node_features[dst],            # h_u ⊕ h_v
+            data.edge_attr if self.edge_in_channels else None,
+            gp_per_edge                                         # + gp
+        ], dim=-1)
 
         edge_feat = self.edge_init(edge_init_feat)
 

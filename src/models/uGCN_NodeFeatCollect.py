@@ -71,7 +71,7 @@ class uGCN_NodeFeatCollect(nn.Module):
             self.out_fc_list = nn.ModuleList()
             # Вход: признаки узлов (src и dst) + признаки ребер
             # in_channels = node_conv_layer_list[-1] * 2 * node_conv_heads + edge_fc_layer_list[-1]
-            in_channels = (in_node_dim + sum(node_conv_layer_list) * node_conv_heads) * 2 + edge_fc_layer_list[-1]
+            in_channels = (in_node_dim + sum(node_conv_layer_list) * node_conv_heads) * 1 + edge_fc_layer_list[-1]
             for dim in out_fc_layer_list:
                 self.out_fc_list.append(nn.Linear(in_channels, dim))
                 in_channels = dim
@@ -84,7 +84,7 @@ class uGCN_NodeFeatCollect(nn.Module):
 
         node_features = list()
         node_features.append(x[src])
-        node_features.append(x[dst])
+        # node_features.append(x[dst])
         # Обработка узлов через графовые слои
         for node_conv in self.node_conv_list:
             if self.global_pool is not None:
@@ -92,7 +92,7 @@ class uGCN_NodeFeatCollect(nn.Module):
                 x = torch.cat([x, graph_pool], dim=1)  # Объединение локальных и глобальных признаков
             x = F.relu(node_conv(x, edge_index))
             node_features.append(x[src])
-            node_features.append(x[dst])
+            # node_features.append(x[dst])
 
         # Обработка признаков ребер через FC
         edge_emb = edge_attr

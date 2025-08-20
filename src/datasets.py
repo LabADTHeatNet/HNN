@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 import random
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 
 import torch
 from torch.utils.data import random_split
@@ -17,7 +18,7 @@ import tqdm
 from src.utils import get_str_timestamp
 
 
-def find_file_pairs(root_dir):
+def find_file_pairs(root_dir, ideal=False):
     """Поиск пар файлов nodes и edges в директории и поддиректориях с использованием pathlib."""
     root = Path(root_dir)
     file_pairs = []
@@ -27,6 +28,10 @@ def find_file_pairs(root_dir):
         # Пропускаем временные файлы (например, Excel временные файлы начинающиеся с '~$'
         # или файлы, содержащие '-checkpoint' в имени)
         if nodes_path.name.startswith("~$") or "-checkpoint" in nodes_path.name:
+            continue
+
+        # Фильтрация файлов по наличию '_ideal' в имени в зависимости от параметра ideal
+        if ("_ideal" in nodes_path.name) != ideal:
             continue
 
         # Определяем соответствующий файл, заменяя 'nodes' на 'tubes'
@@ -50,10 +55,14 @@ def load_dataframes(files_list):
         # edges_df['mod'] = edges_df['moded']
         # edges_df.loc[edges_df['mod'] == 1, "mod"] = 0
         # edges_df.loc[edges_df['mod'] == 2, "mod"] = 1
-        
+
         nodes_df['types_def'] = nodes_df['types'] == 0
         nodes_df['types_usr'] = nodes_df['types'] == 1
         nodes_df['types_src'] = nodes_df['types'] == 2
+
+        edges_df['Vid_fwd'] = edges_df['Vid'] == 0
+        edges_df['Vid_bwd'] = edges_df['Vid'] == 1
+        edges_df['Vid_usr'] = edges_df['Vid'] == 2
 
         # создаём отображение id → Q
         q_map = nodes_df.set_index('id')['Q']
@@ -61,15 +70,18 @@ def load_dataframes(files_list):
         edges_df['Q_out'] = edges_df['id_out'].map(q_map)
         edges_df['Q_in'] = edges_df['id_in'].map(q_map)
         edges_df['dQ'] = edges_df['id_out'].map(q_map) - edges_df['id_in'].map(q_map)
-        
-        # Исправление пропущенных идентификаторов узлов (например, id=129)
-        edges_df = edges_df[edges_df.id_in != 129]
-        edges_df = edges_df[edges_df.id_out != 129]
-        nodes_df = nodes_df[nodes_df.id != 129]
-        # Корректировка идентификаторов после удаления
-        nodes_df.loc[nodes_df['id'] >= 129, 'id'] -= 1
-        edges_df.loc[edges_df['id_in'] >= 129, 'id_in'] -= 1
-        edges_df.loc[edges_df['id_out'] >= 129, 'id_out'] -= 1
+
+        # ids_to_correct = [129]
+        ids_to_correct = []
+        for id in ids_to_correct:
+            # Исправление пропущенных идентификаторов узлов
+            edges_df = edges_df[edges_df.id_in != id]
+            edges_df = edges_df[edges_df.id_out != id]
+            nodes_df = nodes_df[nodes_df.id != id]
+            # Корректировка идентификаторов после удаления
+            nodes_df.loc[nodes_df['id'] >= id, 'id'] -= 1
+            edges_df.loc[edges_df['id_in'] >= id, 'id_in'] -= 1
+            edges_df.loc[edges_df['id_out'] >= id, 'id_out'] -= 1
 
         nodes_dataframes.append(nodes_df)
         edges_dataframes.append(edges_df)
@@ -81,7 +93,6 @@ def fit_global_scalers(nodes_dataframes, edges_dataframes,
                        node_attr, edge_attr, edge_label, scaler_fn=None):
     """Обучение скейлеров на всех данных для согласованной нормализации."""
     if scaler_fn is not None:
-        from src.utils import IdealValueScaler
         # Динамический импорт класса скейлера из sklearn
         scaler_fn = getattr(importlib.import_module(f"sklearn.preprocessing"), scaler_fn)
 
@@ -90,7 +101,6 @@ def fit_global_scalers(nodes_dataframes, edges_dataframes,
         edge_attr_scaler = scaler_fn()
         edge_label_scaler = scaler_fn()
         # edge_label_scaler = IdealValueScaler(edges_dataframes[0][edge_label])
-
 
         # Объединение данных из всех файлов
         all_node_attr_data = pd.concat([df[node_attr] for df in nodes_dataframes], ignore_index=True)
@@ -101,12 +111,12 @@ def fit_global_scalers(nodes_dataframes, edges_dataframes,
         node_attr_scaler.fit(all_node_attr_data)
         edge_attr_scaler.fit(all_edge_attr_data)
         edge_label_scaler.fit(all_edge_label_data)
-        
+
         # Обучение скейлеров
         node_attr_scaler.fit(all_node_attr_data)
         edge_attr_scaler.fit(all_edge_attr_data)
         edge_label_scaler.fit(all_edge_label_data)
-        
+
     else:
         node_attr_scaler = None
         edge_attr_scaler = None
@@ -121,9 +131,11 @@ def fit_global_scalers(nodes_dataframes, edges_dataframes,
 
 def normalize_dataframes(nodes_dataframes, edges_dataframes,
                          node_attr, edge_attr, edge_label,
-                         scalers, edge_label_pred=None):
-    """Применение обученных скейлеров к данным."""
-    for nodes_df, edges_df in tqdm.tqdm(zip(nodes_dataframes, edges_dataframes), total=len(nodes_dataframes)):
+                         scalers, edge_label_pred=None, num_workers=4):
+    """Применение обученных скейлеров к данным с использованием многопоточности."""
+
+    def normalize_pair(args):
+        nodes_df, edges_df = args
         # Нормализация признаков узлов, ребер и меток
         if scalers['node_attr_scaler'] is not None:
             nodes_df[node_attr] = scalers['node_attr_scaler'].transform(nodes_df[node_attr])
@@ -131,11 +143,19 @@ def normalize_dataframes(nodes_dataframes, edges_dataframes,
             edges_df[edge_attr] = scalers['edge_attr_scaler'].transform(edges_df[edge_attr])
         if scalers['edge_label_scaler'] is not None:
             edges_df[edge_label] = scalers['edge_label_scaler'].transform(edges_df[edge_label])
-        if edge_label_pred is not None:  # Нормализация предсказаний, если заданы
+        if edge_label_pred is not None:
             if scalers['edge_label_scaler'] is not None:
                 edges_df[edge_label_pred] = scalers['edge_label_scaler'].transform(edges_df[edge_label_pred])
+        return nodes_df, edges_df
 
-    return nodes_dataframes, edges_dataframes
+    pairs = list(zip(nodes_dataframes, edges_dataframes))
+    results = []
+    with ThreadPoolExecutor(max_workers=num_workers) as executor:
+        for res in tqdm.tqdm(executor.map(normalize_pair, pairs), total=len(pairs)):
+            results.append(res)
+
+    nodes_dataframes, edges_dataframes = zip(*results)
+    return list(nodes_dataframes), list(edges_dataframes)
 
 
 def denormalize_dataframes(nodes_dataframes, edges_dataframes,
@@ -156,10 +176,28 @@ def denormalize_dataframes(nodes_dataframes, edges_dataframes,
     return nodes_dataframes, edges_dataframes
 
 
+def get_t_outside(fp):
+    """Извлечение температуры воздуха снаружи из имени файла."""
+    # Ищем часть пути, начинающуюся с 'Tout_'
+    tout_part = next((p for p in Path(fp).parts if p.startswith('Tout_')), None)
+    if tout_part is None:
+        raise ValueError(f"Не найдено части пути, начинающейся с 'Tout_' в {fp}")
+
+    return int(tout_part[len('Tout_'):])  # Возвращаем температуру как целое число
+
+
 def process_dataframes(nodes_df, edges_df,
                        node_attr, edge_attr, edge_label,
                        nodes_fp, edges_fp):
     """Преобразование DataFrame в объект PyG Data."""
+
+    # Извлечение глобальных параметров
+    t_outside = get_t_outside(nodes_fp)  # Температура воздуха снаружи
+    q_out_node = nodes_df.loc[nodes_df['id'] == 4, 'Q'].values[0]  # Расход на узле с id == 4
+    t_out_node = nodes_df.loc[nodes_df['id'] == 4, 'Temp'].values[0]  # Температура на узле с id == 4
+    t_in_node = nodes_df.loc[nodes_df['id'] == 186, 'Temp'].values[0]  # Температура на узле с id == 186
+    global_attrs = torch.tensor([t_outside, q_out_node, t_out_node, t_in_node], dtype=torch.float).unsqueeze(0)  # [1, global_dim]
+
     # Извлечение признаков узлов
     x = torch.tensor(nodes_df[node_attr].values, dtype=torch.float)
 
@@ -173,6 +211,7 @@ def process_dataframes(nodes_df, edges_df,
 
     # Создание объекта Data для PyTorch Geometric
     data = Data(
+        global_attrs=global_attrs,
         x=x,
         edge_index=t_edge_index,
         edge_attr=t_edge_attr,
@@ -184,8 +223,21 @@ def process_dataframes(nodes_df, edges_df,
     return data
 
 
-def create_dataset(root_dir, node_attr, edge_attr, edge_label, num_samples=None, seed=42, scaler_fn=None):
+def create_dataset(root_dir, node_attr, edge_attr, edge_label, num_samples=None, seed=42, scaler_fn=None, add_ideal=False):
     """Создание датасета из файлов с нормализацией и преобразованием в графы."""
+    
+    if add_ideal:
+        print("[IDEAL] Поиск пар файлов...")
+        ideal_files_list = find_file_pairs(root_dir, ideal=True)
+        print(f"[IDEAL] Найдено {len(ideal_files_list)} пар файлов.")
+
+        print("[IDEAL] Считывание таблиц...")
+        ideal_nodes_dataframes, ideal_edges_dataframes = load_dataframes(ideal_files_list)
+        
+        ideal_ne_df_list = dict()
+        for (n_fp, _), in_df, ie_df  in zip(ideal_files_list,  ideal_nodes_dataframes, ideal_edges_dataframes):
+            ideal_ne_df_list[get_t_outside(n_fp)] = (in_df, ie_df)
+            
     print("Поиск пар файлов...")
     files_list = find_file_pairs(root_dir)
     print(f"Найдено {len(files_list)} пар файлов.")
@@ -197,13 +249,68 @@ def create_dataset(root_dir, node_attr, edge_attr, edge_label, num_samples=None,
     print("Считывание таблиц...")
     nodes_dataframes, edges_dataframes = load_dataframes(files_list)
 
-    print("Обучение глобальных скейлеров...")
+
+    if add_ideal:
+        tag = '_ideal'
+        nodes_ideal_attrs = []
+        for na in node_attr:
+            if tag in na:
+                nodes_ideal_attrs.append(na[:-len(tag)])  # Удаляем '_ideal' из имени атрибута
+        edges_ideal_attrs = []
+        for ea in edge_attr:
+            if tag in ea:
+                edges_ideal_attrs.append(ea[:-len(tag)])  # Удаляем '_ideal' из имени атрибута
+
+        print("[IDEAL] Добавление идеальных данных в таблицы...")
+        for nodes_df, edges_df, (nodes_fp, edges_fp) in tqdm.tqdm(zip(nodes_dataframes, edges_dataframes, files_list), total=len(nodes_dataframes)):
+            # Если есть идеальные данные, добавляем их в глобальные параметры
+            t_outside = get_t_outside(nodes_fp)
+            if t_outside in ideal_ne_df_list:
+                ideal_nodes_df, ideal_edges_df = ideal_ne_df_list[t_outside]
+                for k in nodes_ideal_attrs:
+                    nodes_df[f'{k}_ideal'] = ideal_nodes_df[k]
+                    if k in node_attr:
+                        nodes_df[k] -= ideal_nodes_df[k]  # вычитание идеальных значений
+                for k in edges_ideal_attrs:
+                    edges_df[f'{k}_ideal'] = ideal_edges_df[k]
+                    if k in edge_attr or k in edge_label:
+                        edges_df[k] -= ideal_edges_df[k]  # вычитание идеальных значений
+
+            else:
+                print(f"[IDEAL] Предупреждение: Идеальные данные для nodes_fp={nodes_fp}, t_outside={t_outside} не найдены. Используются исходные данные.")
+
+        for ideal_nodes_df in ideal_nodes_dataframes:
+            for k in ideal_nodes_df.columns:
+                ideal_nodes_df[f'{k}_ideal'] = ideal_nodes_df[k]
+        for ideal_edges_df in ideal_edges_dataframes:
+                for k in ideal_edges_df.columns:
+                    ideal_edges_df[f'{k}_ideal'] = ideal_edges_df[k]
+
+    print("Обучение скейлеров...")
     scalers = fit_global_scalers(nodes_dataframes, edges_dataframes,
                                  node_attr, edge_attr, edge_label, scaler_fn=scaler_fn)
+
+    if add_ideal:
+        print("[IDEAL] Нормализация таблиц...")
+        ideal_nodes_dataframes, ideal_edges_dataframes = normalize_dataframes(
+            ideal_nodes_dataframes, ideal_edges_dataframes, node_attr, edge_attr, edge_label, scalers)
 
     print("Нормализация таблиц...")
     nodes_dataframes, edges_dataframes = normalize_dataframes(
         nodes_dataframes, edges_dataframes, node_attr, edge_attr, edge_label, scalers)
+
+    ideal_dataset = []
+    if add_ideal:
+        print("[IDEAL] Конвертация в PyG Data...")
+        for nodes_df, edges_df, (nodes_fp, edges_fp) in tqdm.tqdm(zip(ideal_nodes_dataframes, ideal_edges_dataframes, ideal_files_list), total=len(ideal_nodes_dataframes)):
+            try:
+                data = process_dataframes(nodes_df, edges_df, node_attr, edge_attr, edge_label, nodes_fp, edges_fp)
+                ideal_dataset.append(data)
+            except Exception as e:
+                error_msg = f"[IDEAL] Ошибка обработки файлов:\n- Узлы: {nodes_fp}\n- Ребра: {edges_fp}\nПричина: {str(e)}"
+                print(error_msg)
+                with open("data_processing_errors.log", "a") as log_file:
+                    log_file.write(f"{get_str_timestamp()} | {error_msg}\n")
 
     print("Конвертация в PyG Data...")
     dataset = []
@@ -217,7 +324,7 @@ def create_dataset(root_dir, node_attr, edge_attr, edge_label, num_samples=None,
             with open("data_processing_errors.log", "a") as log_file:
                 log_file.write(f"{get_str_timestamp()} | {error_msg}\n")
 
-    return dataset, scalers
+    return dataset, scalers, ideal_dataset
 
 
 def split_dataset(dataset, train_ratio, val_ratio, seed=42):
@@ -244,32 +351,34 @@ def prepare_data(dataset_config, dataloader_config, seed=42, prepare_dataloaders
     """Основная функция подготовки данных: загрузка или создание датасета.
     Параметр prepare_dataloaders управляет разделением и созданием DataLoader'ов."""
     # Загрузка или создание датасета
-    if dataset_config['load']:
+    if dataset_config['load'] and Path(dataset_config['fp']).exists():
         try:
             dataset_dict = torch.load(dataset_config['fp'])
         except FileNotFoundError:
             raise FileNotFoundError(f"Файл датасета не найден: {dataset_config['fp']}")
         except Exception as e:
             raise RuntimeError(f"Ошибка загрузки датасета из {dataset_config['fp']}: {e}")
-        dataset = dataset_dict['dataset']
-        scalers = dataset_dict['scalers']
+        dataset = dataset_dict.get('dataset', [])
+        scalers = dataset_dict.get('scalers', [])
+        ideal_dataset = dataset_dict.get('ideal_dataset', [])
         print(f"Датасет загружен из файла: {dataset_config['fp']}")
     else:
         print("Создание датасета...")
         dataset_path = osp.join(dataset_config['datasets_dir'], dataset_config['name'])
-        dataset, scalers = create_dataset(
+        dataset, scalers, ideal_dataset = create_dataset(
             str(dataset_path),
             dataset_config['node_attr'],
             dataset_config['edge_attr'],
             dataset_config['edge_label'],
             num_samples=dataset_config.get('num_samples'),
             seed=seed,
-            scaler_fn=dataset_config.get('scaler_fn')
+            scaler_fn=dataset_config.get('scaler_fn'),
+            add_ideal=dataset_config.get('add_ideal', False)
         )
-        torch.save({'dataset': dataset, 'scalers': scalers}, dataset_config['fp'])
+        torch.save({'dataset': dataset, 'scalers': scalers, 'ideal_dataset': ideal_dataset}, dataset_config['fp'])
         print(f"Датасет сохранен в файл: {dataset_config['fp']}")
 
-    print(f"Готово! Количество графов: {len(dataset)}")
+    print(f"Готово! Количество графов: {len(dataset)}, идеальных графов: {len(ideal_dataset)}")
 
     # Если не требуется создание DataLoader'ов, возвращаем только dataset и scalers
     if not prepare_dataloaders:
@@ -293,7 +402,7 @@ def prepare_data(dataset_config, dataloader_config, seed=42, prepare_dataloaders
         **dataloader_config.get('kwargs', {})
     )
 
-    return dataset, scalers, train_loader, val_loader, test_loader
+    return dataset, scalers, train_loader, val_loader, test_loader, ideal_dataset
 
 
 def data_to_tables(in_data,
@@ -384,7 +493,6 @@ def refine(dataset, k=1):
     new_data_list[0].edge_target_cols.append(f'{k}_sum')
     return GraphDatasetFromList(new_data_list)
 
-import torch
 
 def detect_defects(all_data):
     """
@@ -407,7 +515,7 @@ def detect_defects(all_data):
     for d in all_data:
         labels = d.edge_label.cpu()
         mask0 = (d.edge_moded.cpu() == 0)
-        sum_dia[mask0]   += labels[mask0]
+        sum_dia[mask0] += labels[mask0]
         count_dia[mask0] += 1
     # Чтобы не делить на 0, можно оставить идеал там, где count_dia==0 равным 0
     ideal_dia = sum_dia / count_dia.clamp(min=1)
@@ -419,7 +527,7 @@ def detect_defects(all_data):
     pred_moded_list = []
 
     for d in all_data:
-        pred   = d.edge_label_pred.cpu()
+        pred = d.edge_label_pred.cpu()
         actual = d.edge_moded.cpu()
 
         # процент отклонения от идеала
@@ -435,12 +543,12 @@ def detect_defects(all_data):
         mask1 = (actual == 1)
         mask2 = (actual == 2)
 
-        total1  += mask1.sum().item()
-        total2  += mask2.sum().item()
+        total1 += mask1.sum().item()
+        total2 += mask2.sum().item()
         correct1 += (pred_moded[mask1] == 1).sum().item()
         correct2 += (pred_moded[mask2] == 2).sum().item()
 
-    acc1 = correct1 / total1 if total1>0 else 0.0
-    acc2 = correct2 / total2 if total2>0 else 0.0
+    acc1 = correct1 / total1 if total1 > 0 else 0.0
+    acc2 = correct2 / total2 if total2 > 0 else 0.0
 
     return ideal_dia, acc1, acc2, dev_list, pred_moded_list

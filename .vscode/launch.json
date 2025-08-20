@@ -11,6 +11,13 @@
     ],
     "configurations": [
         {
+            "name": "train_EdgeRegressorNetwork_Termo.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "train_EdgeRegressorNetwork_Termo.py",
+            "console": "integratedTerminal"
+        },
+        {
             "name": "train_EdgeRegressorNetwork.py",
             "type": "debugpy",
             "request": "launch",
