@@ -16,7 +16,8 @@ import matplotlib.pyplot as plt
 
 from src.datasets import (
     prepare_data,
-    data_to_tables
+    data_to_tables,
+    add_sections
 )
 from src.utils import (
     train,
@@ -355,6 +356,7 @@ def test_exp(exp_dir_path, results_dir_path, cfg, num_samples_to_draw=None):
 
         # a) получаем таблицы
         nodes_df, edges_df = get_tables(d)
+        edges_df = add_sections(nodes_df, edges_df)
         denorm = get_denormed_data(d, nodes_df, edges_df)
         d = denorm
 
@@ -438,10 +440,11 @@ def test_exp(exp_dir_path, results_dir_path, cfg, num_samples_to_draw=None):
         def fmt(i):
             u, v = int(d.edge_index[0, i]), int(d.edge_index[1, i])
             itdev, ipdev = true_dev[i], pred_dev[i]
-            return i, u, v, itdev, ipdev
+            id_section = edges_df.loc[i, 'id_section']
+            return i, u, v, itdev, ipdev, id_section
 
-        def print_fmt(i, u, v, itdev, ipdev):
-            str_fmt = f'{i}({u}-{v}), true_dev={itdev:.2f}, pred_dev={ipdev:.2f}'
+        def print_fmt(i, u, v, itdev, ipdev, id_section):
+            str_fmt = f'{i}({u}-{v}), true_dev={itdev:.2f}, pred_dev={ipdev:.2f}, id_section={id_section}'
             return str_fmt
 
         if not true_idxs and not pred_idxs:
@@ -464,6 +467,7 @@ def test_exp(exp_dir_path, results_dir_path, cfg, num_samples_to_draw=None):
             else:
                 # D | D (wrong)
                 dd_wrong_list.append([sample_name, [fmt(i) for i in true_idxs], [fmt(i) for i in pred_idxs]])
+
 
     nn_list.sort(key=lambda v: v[0])
     nd_list.sort(key=lambda v: v[0])
@@ -504,11 +508,11 @@ def test_exp(exp_dir_path, results_dir_path, cfg, num_samples_to_draw=None):
 
     # print()
     print(f"=== D | D wrong ({len(dd_wrong_list)} samples)===")
-    # for sample_name, true_idxs, pred_idxs in dd_wrong_list:
-    #     print(f'{sample_name}: '
-    #           f'true_defect {[print_fmt(*v) for v in true_idxs]} '
-    #           f'pred_defect {[print_fmt(*v) for v in pred_idxs]} '
-    #           )
+    for sample_name, true_idxs, pred_idxs in dd_wrong_list:
+        print(f'{sample_name}: '
+              f'true_defect {[print_fmt(*v) for v in true_idxs]} '
+              f'pred_defect {[print_fmt(*v) for v in pred_idxs]} '
+              )
 
     cm = [[len(nn_list), len(nd_list), 0],
           [len(dn_list), len(dd_list), len(dd_wrong_list)]]

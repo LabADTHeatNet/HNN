@@ -79,8 +79,8 @@ if __name__ == '__main__':
     dataset = dict(
         datasets_dir=osp.join(root_dir, 'datasets'),  # Путь к данным
         name='Termo_model',  # Имя датасета
-        load=True,  # Загружать предобработанный датасет из файла
-        fp=fp,  # Файл предобработанного датасета
+        load=False,  # Загружать предобработанный датасет из файла
+        fp=fp,  # Файл предобработанного датасетаДА
         node_attr=node_attr,  # Атрибуты узлов
         edge_attr=edge_attr,  # Атрибуты ребер
         edge_label=['moded'],  # Целевые метки ребер
@@ -133,7 +133,7 @@ if __name__ == '__main__':
     # Параметры обучения
     init_lr = 1e-3
     final_lr = 1e-6
-    epochs_num = 500
+    epochs_num = 100
 
     # # Параметры оптимизатора
     # optimizer = dict(

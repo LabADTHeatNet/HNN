@@ -43,12 +43,91 @@ def find_file_pairs(root_dir, ideal=False):
 
     return file_pairs
 
+def get_node_degrees (edges_df):
+    node_deg_out = {}
+    node_deg_in = {}
+    for edge in edges_df.iterrows():
+        node_deg_in[edge[1]['id_out']] = node_deg_in.get(edge[1]['id_out'], 0) + 1
+        node_deg_out[edge[1]['id_in']] = node_deg_out.get(edge[1]['id_in'], 0) + 1
+    return node_deg_out, node_deg_in
+
+def add_sections(nodes_df, edges_df):
+    '''
+    Функция, добавляющая в edges_df колонку id_section,
+    отвечающую за принадлежность рёбер компоненте "участка",
+    разделяющей рёбра между разными рёбрами-потребителями и вершинами-развилками. 
+    '''
+    # Определяем вершины-источники и степени вершин в целом
+    node_deg_out, node_deg_in = get_node_degrees(edges_df)
+    start_vertices_id = (set(nodes_df['id'])).difference(set(node_deg_in.keys()))
+    
+    if len(start_vertices_id) > 2:
+        print("Found more than 2 source nodes!\nAre you sure this is correct behaviour?")
+        
+    # Определяем рёбра, исходящие из вершин-источников
+    start_edges = []
+    for vertice in start_vertices_id:
+        start_edges.append(edges_df.loc[edges_df['id_in'] == vertice])
+    if len(start_edges) == 0:
+        return edges_df
+    
+    edge_queue = deque()
+    visited_id = set()
+    
+    # На данное значение будет инкрементироваться id_section,
+    # подразумевается, что для двух компонент связности нечётные id_section будут относиться к 1-й, а чётные -- ко 2-й компоненте
+    num_sources = len(start_edges) 
+    
+    
+    # Добавляем стартовые рёбра в очередь
+    for i, edge in enumerate(start_edges):
+        # Внутренний цикл -- костыль (добавлять строки df в list, вероятно, не лучшая идея)
+        for edge_t in edge.itertuples(): 
+            id_section = i + num_sources if edge_t.Vid_usr else i
+            edge_queue.append((edge_t.Index, edge_t.id_in, edge_t.id_out, id_section))
+            visited_id.add(edge_t.Index)
+            
+    next_section_ids = [i for i in range(num_sources)]   
+     
+    # Запускаем BFS
+    while (edge_queue):
+        id, id_in, id_out, id_section = edge_queue.popleft()
+        edges_df.loc[id,'id_section'] = id_section
+        next_edges = edges_df.loc[edges_df['id_in'] == id_out]
+        if len(next_edges) > 0:
+            for next_edge in next_edges.itertuples():
+                if next_edge.Index not in visited_id:
+                    
+                    # Если ребро -- потребитель, то увеличиваем id_section всех последующих рёбер
+                    # Или если ребро выходит из вершины-развилки, то пусть оно тоже имеет новый id_section
+                    if (next_edge.Vid_usr) or node_deg_in[id_out] + node_deg_out[id_out] > 2:
+                        next_section_ids[id_section % num_sources] += num_sources 
+                        edge_queue.append((next_edge.Index, next_edge.id_in, next_edge.id_out, next_section_ids[id_section % num_sources]))
+                    else:
+                        edge_queue.append((next_edge.Index, next_edge.id_in, next_edge.id_out, id_section))
+                    
+                    # Добавляем смежное ребро в очередь
+                    
+                    visited_id.add(next_edge.Index)
+    
+    if visited_id != set(edges_df.index):
+        for id in set(edges_df.index):
+            if id not in visited_id:
+                print("Edge ", id, " was not visited!")
+        print("Not all edges were visited!")
+        # TO DO: подумать надо ли бросать исключение
+        raise Exception('RuntimeError')
+    return edges_df
+            
+    
 
 def load_dataframes(files_list):
     """Загрузка данных узлов и ребер из CSV-файлов."""
     nodes_dataframes = []
     edges_dataframes = []
 
+    id_section = None
+    junction_nodes = None
     for nodes_path, edges_path in tqdm.tqdm(files_list):
         nodes_df = pd.read_csv(nodes_path, sep='\t')
         edges_df = pd.read_csv(edges_path, sep='\t')
@@ -63,7 +142,7 @@ def load_dataframes(files_list):
         edges_df['Vid_fwd'] = edges_df['Vid'] == 0
         edges_df['Vid_bwd'] = edges_df['Vid'] == 1
         edges_df['Vid_usr'] = edges_df['Vid'] == 2
-
+        
         # создаём отображение id → Q
         q_map = nodes_df.set_index('id')['Q']
         # добавляем dQ прямо по map
@@ -82,10 +161,24 @@ def load_dataframes(files_list):
             nodes_df.loc[nodes_df['id'] >= id, 'id'] -= 1
             edges_df.loc[edges_df['id_in'] >= id, 'id_in'] -= 1
             edges_df.loc[edges_df['id_out'] >= id, 'id_out'] -= 1
-
+        
+        # Добавление параметра секции труб
+        edges_df['id_section'] = -1
+        if id_section is None:
+            edges_df = add_sections(nodes_df, edges_df)
+            id_section = edges_df['id_section']
+        else:
+            edges_df['id_section'] = id_section
+        
+        users = edges_df.loc[edges_df['Vid_usr'], ['id_in', 'id_out']]
+        nodes_usr =set(pd.concat([users['id_in'], users['id_out']]))
+        if junction_nodes is None:
+            deg_out, deg_in = get_node_degrees(edges_df)
+            mapped_degrees = nodes_df.index.map(lambda x : deg_out.get(x, 0)) + nodes_df.index.map(lambda x : deg_in.get(x, 0))
+            junction_nodes = set(nodes_df.loc[mapped_degrees > 2].index)
+        nodes_df.loc[~nodes_df.index.isin(nodes_usr | junction_nodes), ['P', 'Temp', 'P_ideal', 'Temp_ideal']] = 0
         nodes_dataframes.append(nodes_df)
         edges_dataframes.append(edges_df)
-
     return nodes_dataframes, edges_dataframes
 
 
