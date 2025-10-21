@@ -12,7 +12,7 @@ from torch.utils.data import random_split
 
 from torch_geometric.data import Data, InMemoryDataset
 from torch_geometric.loader import DataLoader
-
+from sklearn.preprocessing import LabelEncoder
 import tqdm
 
 from src.utils import get_str_timestamp
@@ -53,12 +53,16 @@ def get_node_degrees (edges_df):
 
 def add_sections(nodes_df, edges_df):
     '''
-    Функция, добавляющая в edges_df колонку id_section,
+    Функция, добавляющая в edge_df колонку id_section,
     отвечающую за принадлежность рёбер компоненте "участка",
     разделяющей рёбра между разными рёбрами-потребителями и вершинами-развилками. 
     '''
     # Определяем вершины-источники и степени вершин в целом
-    node_deg_out, node_deg_in = get_node_degrees(edges_df)
+    node_deg_out = {}
+    node_deg_in = {}
+    for edge in edges_df.iterrows():
+        node_deg_in[edge[1]['id_out']] = node_deg_in.get(edge[1]['id_out'], 0) + 1
+        node_deg_out[edge[1]['id_in']] = node_deg_out.get(edge[1]['id_in'], 0) + 1
     start_vertices_id = (set(nodes_df['id'])).difference(set(node_deg_in.keys()))
     
     if len(start_vertices_id) > 2:
@@ -101,6 +105,7 @@ def add_sections(nodes_df, edges_df):
                     # Если ребро -- потребитель, то увеличиваем id_section всех последующих рёбер
                     # Или если ребро выходит из вершины-развилки, то пусть оно тоже имеет новый id_section
                     if (next_edge.Vid_usr) or node_deg_in[id_out] + node_deg_out[id_out] > 2:
+
                         next_section_ids[id_section % num_sources] += num_sources 
                         edge_queue.append((next_edge.Index, next_edge.id_in, next_edge.id_out, next_section_ids[id_section % num_sources]))
                     else:
@@ -117,7 +122,10 @@ def add_sections(nodes_df, edges_df):
         print("Not all edges were visited!")
         # TO DO: подумать надо ли бросать исключение
         raise Exception('RuntimeError')
+    edges_df['id_section'] = LabelEncoder().fit_transform(edges_df['id_section'])
     return edges_df
+            
+    
             
     
 
@@ -176,7 +184,23 @@ def load_dataframes(files_list):
             deg_out, deg_in = get_node_degrees(edges_df)
             mapped_degrees = nodes_df.index.map(lambda x : deg_out.get(x, 0)) + nodes_df.index.map(lambda x : deg_in.get(x, 0))
             junction_nodes = set(nodes_df.loc[mapped_degrees > 2].index)
+            
+        # Обнуляем большую часть данных исходя из того, что в реальной жизни их не будет    
         nodes_df.loc[~nodes_df.index.isin(nodes_usr | junction_nodes), ['P', 'Temp', 'P_ideal', 'Temp_ideal']] = 0
+        
+        deviation = np.abs(edges_df['moded'] - 1.0)
+        
+        # ВЫНЕСТИ КУДА-ТО ЭТОТ ПАРАМЕТР
+        defect_threshold = 0.05
+        
+        defect = deviation[deviation > defect_threshold]
+        if len(defect) > 0:
+            # Берем секцию с самым сильным дефектом
+            defect_section = edges_df.loc[defect.idxmax(), 'id_section']
+        else:
+            # Если дефекта нет, присваиваем отдельную метку
+            defect_section = max(edges_df['id_section'].unique()) + 1 
+        edges_df['graph_label'] = defect_section
         nodes_dataframes.append(nodes_df)
         edges_dataframes.append(edges_df)
     return nodes_dataframes, edges_dataframes
@@ -192,23 +216,23 @@ def fit_global_scalers(nodes_dataframes, edges_dataframes,
         # Инициализация скейлеров
         node_attr_scaler = scaler_fn()
         edge_attr_scaler = scaler_fn()
-        edge_label_scaler = scaler_fn()
+        # edge_label_scaler = scaler_fn()
         # edge_label_scaler = IdealValueScaler(edges_dataframes[0][edge_label])
 
         # Объединение данных из всех файлов
         all_node_attr_data = pd.concat([df[node_attr] for df in nodes_dataframes], ignore_index=True)
         all_edge_attr_data = pd.concat([df[edge_attr] for df in edges_dataframes], ignore_index=True)
-        all_edge_label_data = pd.concat([df[edge_label] for df in edges_dataframes], ignore_index=True)
+        # all_edge_label_data = pd.concat([df[edge_label] for df in edges_dataframes], ignore_index=True)
 
         # Обучение скейлеров
         node_attr_scaler.fit(all_node_attr_data)
         edge_attr_scaler.fit(all_edge_attr_data)
-        edge_label_scaler.fit(all_edge_label_data)
+        # edge_label_scaler.fit(all_edge_label_data)
 
         # Обучение скейлеров
         node_attr_scaler.fit(all_node_attr_data)
         edge_attr_scaler.fit(all_edge_attr_data)
-        edge_label_scaler.fit(all_edge_label_data)
+        # edge_label_scaler.fit(all_edge_label_data)
 
     else:
         node_attr_scaler = None
@@ -218,7 +242,7 @@ def fit_global_scalers(nodes_dataframes, edges_dataframes,
     return {
         'node_attr_scaler': node_attr_scaler,
         'edge_attr_scaler': edge_attr_scaler,
-        'edge_label_scaler': edge_label_scaler
+        # 'edge_label_scaler': edge_label_scaler
     }
 
 
@@ -234,11 +258,11 @@ def normalize_dataframes(nodes_dataframes, edges_dataframes,
             nodes_df[node_attr] = scalers['node_attr_scaler'].transform(nodes_df[node_attr])
         if scalers['edge_attr_scaler'] is not None:
             edges_df[edge_attr] = scalers['edge_attr_scaler'].transform(edges_df[edge_attr])
-        if scalers['edge_label_scaler'] is not None:
-            edges_df[edge_label] = scalers['edge_label_scaler'].transform(edges_df[edge_label])
-        if edge_label_pred is not None:
-            if scalers['edge_label_scaler'] is not None:
-                edges_df[edge_label_pred] = scalers['edge_label_scaler'].transform(edges_df[edge_label_pred])
+        # if scalers['edge_label_scaler'] is not None:
+        #     edges_df[edge_label] = scalers['edge_label_scaler'].transform(edges_df[edge_label])
+        # if edge_label_pred is not None:
+        #     if scalers['edge_label_scaler'] is not None:
+        #         edges_df[edge_label_pred] = scalers['edge_label_scaler'].transform(edges_df[edge_label_pred])
         return nodes_df, edges_df
 
     pairs = list(zip(nodes_dataframes, edges_dataframes))
@@ -299,7 +323,9 @@ def process_dataframes(nodes_df, edges_df,
 
     # Извлечение признаков и меток ребер
     t_edge_attr = torch.tensor(edges_df[edge_attr].values, dtype=torch.float)
-    t_edge_label = torch.tensor(edges_df[edge_label].values, dtype=torch.float)
+    # ИЗМЕНЕНО ДЛЯ КЛАССИФИКАЦИИ
+    t_edge_label = torch.tensor(edges_df[edge_label].values[0], dtype=torch.long)
+    
     t_edge_moded = torch.tensor(edges_df[['moded']].values, dtype=torch.float)
 
     # Создание объекта Data для PyTorch Geometric
@@ -520,7 +546,7 @@ def data_to_tables(in_data,
     # Денормализация
     if scalers:
         nodes_df, edges_df = denormalize_dataframes(
-            [nodes_df], [edges_df], node_attr, edge_attr, edge_label, scalers, edge_label_pred=edge_label_pred)
+            [nodes_df], [edges_df], node_attr, edge_attr, [], scalers)
         nodes_df = nodes_df[0]
         edges_df = edges_df[0]
 

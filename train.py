@@ -1,4 +1,6 @@
-# %% Импорты и основные параметры
+import copy
+import torch
+
 import copy
 import os.path as osp
 import torch
@@ -11,257 +13,226 @@ from exp import (
 )
 from src.utils import get_str_timestamp
 
-# Флаг для работы на кластере CASCADE
-CASCADE = False  # если запускать на кластере CASCADE, установить True
+server_name = 'seth'
+root_dir = '.'
 
-if CASCADE:
-    server_name = 'CASCADE'
-    TORCH_HUB_DIR = '/storage0/pia/python/hub/'  # Директория для хранения моделей torch.hub
-    torch.hub.set_dir(TORCH_HUB_DIR)
-    root_dir = '/storage0/pia/python/heatnet/'  # Корневая директория проекта на кластере
-else:
-    server_name = 'seth'  # Локальный сервер
-    root_dir = '.'  # Текущая директория для локального запуска
-
-
-def calc_gamma(init_lr, final_lr, num_epochs):
-    return pow(final_lr / init_lr, 1 / num_epochs)
-
-
-# %% Конфигурация эксперимента
 if __name__ == '__main__':
     debug_run = False  # Режим отладки (уменьшает размер данных и длительность обучения)
-    run_clear_ml = True  # Интеграция с ClearML для трекинга экспериментов
-    num_samples_to_draw = 20  # Количество примеров для визуализации после теста
+    run_clear_ml = False  # Интеграция с ClearML для трекинга экспериментов
+    num_samples_to_draw = 0  # Количество примеров для визуализации после теста
 
     # Определение устройства (GPU/CPU)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    # %% Конфигурации компонентов эксперимента
-    # Общие утилиты
+    # Утилитарные параметры
     utils = dict(
         server_name=server_name,
-        out_dir='out_Yasn_Q',  # Выходная директория для результатов
+        out_dir='out_Termo',  # Выходная директория для всех результатов
         device=device,
         seed=42  # Фиксация случайности для воспроизводимости
     )
 
-    # Настройки датасета
+    node_attr = ['pos_x', 'pos_y', 'P', 'types']
+
+    # Набор конифгураций датасета  #TODO: переделать выбор
+    # # === default ===
+    # exp_mode = None
+    # fp = 'data.pt'
+    # edge_attr = ['dP']
+
+    # # === eaL ===
+    # exp_mode = 'eaL'
+    # fp = 'data_eaL.pt'
+    # edge_attr = ['l']
+
+    # # === eaLdPQ ===
+    # exp_mode = 'eaLdpQ'
+    # fp = 'data_eaLdPQ.pt'
+    # edge_attr = ['l', 'dP', 'Q']
+
+    # # === eaLdP ===
+    # exp_mode = 'eaLdp'
+    # fp = 'data_eaLdP.pt'
+    # edge_attr = ['l', 'dP']
+
+    # # === naQ ===
+    # exp_mode = 'naQ'
+    # fp = 'data_naQ.pt'
+    # node_attr = ['pos_x', 'pos_y', 'P', 'Q', 'types']
+    # edge_attr = ['dP']
+
+    # # === eadQ ===
+    # exp_mode = 'eadQ'
+    # fp = 'data_eadQ.pt'
+    # node_attr = ['pos_x', 'pos_y', 'P', 'types_def', 'types_usr', 'types_src']
+    # edge_attr = ['l', 'dP', 'dQ', 'Q_out', 'Q_in']
+
+    # === Termo ===
+    exp_mode = 'Termo'  # Режим эксперимента
+    fp = 'data_Termo_Heat.pt'
+    node_attr = ['pos_x', 'pos_y', 'types_def', 'types_usr', 'types_src', 'P', 'Temp', 'P_ideal', 'Temp_ideal']  # Атрибуты узлов
+    edge_attr = ['d', 'l', 'Vid_fwd', 'Vid_bwd', 'Vid_usr']  # Атрибуты ребер
+    in_global_dim = 4  # Размерность глобальных параметров (например, для Termo: [t_outside, q_out_node, t_out_node, t_in_node])
+
+    # Параметры датасета
     dataset = dict(
         datasets_dir=osp.join(root_dir, 'datasets'),  # Путь к данным
-        name='database_Yasn_Q',  # Имя датасета
+        name='Termo_model',  # Имя датасета
         load=False,  # Загружать предобработанный датасет из файла
-        fp='pyg_dataset_Yasn_Q.pt',  # Файл предобработанного датасета
-        node_attr=['pos_x', 'pos_y', 'P', 'types'],  # Атрибуты узлов
-        edge_attr=['dP', 'l'],  # Атрибуты ребер
-        # edge_label=['d', 'vel'],  # Целевые метки ребер
-        edge_label=['d'],  # Целевые метки ребер
-        scaler_fn=None,  # Метод нормализации данных (None/MinMaxScaler/RobustScaler)
-        num_samples=None  # Ограничение количества выборок (None для всех)
+        fp=fp,  # Файл предобработанного датасетаДА
+        node_attr=node_attr,  # Атрибуты узлов
+        edge_attr=edge_attr,  # Атрибуты ребер
+        edge_label=['graph_label'],  # Целевые метки ребер
+        scaler_fn='StandardScaler',  # Метод нормализации данных (None/MinMaxScaler/RobustScaler/StandardScaler)
+        num_samples=None,  # Ограничение количества выборок (None для всех)
+        add_ideal=True  # Добавление идеального датасета (True/False)
     )
 
-    # Настройки загрузчиков данных
+    # Параметры загрузчиков данных
     dataloader = dict(
         train_ratio=0.7,  # Доля обучающих данных
         val_ratio=0.15,  # Доля валидационных данных
-        batch_size=None,  # Размер батча (будет задан позже)
+        batch_size=16,  # Размер батча
     )
 
-    # Настройки оптимизатора
-    optimizer = dict(
-        name='AdamW',  # Название оптимизатора
+    # Параметры модели
+    # node_hidden_channels = 64
+    # num_node_layers = 4
+    # edge_hidden_channels = 64
+    # num_edge_layers = 4
+    # heads = 4
+    # dropout = 0.0
+    # jump_mode = 'cat'
+
+    node_hidden_channels = 128
+    num_node_layers = 8
+    edge_hidden_channels = 128
+    num_edge_layers = 8
+    heads = 4
+    dropout = 0.2
+    jump_mode = 'cat'
+    
+    EdgeClassifierNetwork_Attr_model = dict(
+        name='EdgeClassifierNetwork_Attr',
         kwargs=dict(
-            lr=1e-3,  # Скорость обучения
-            weight_decay=1e-5  # L2-регуляризация
-        )
+            # node_in_channels=node_in_channels,   # устанавливается в exp_cls, = размеру входным данных
+            # edge_in_channels=edge_in_channels,   # устанавливается в exp_cls, = размеру входных данных
+            # out_channels=out_channels,           # устанавливается в exp_cls, = размеру выходных данных
+            in_global_dim=in_global_dim,
+            node_hidden_channels=node_hidden_channels,
+            num_node_layers=num_node_layers,
+            edge_hidden_channels=edge_hidden_channels,
+            num_edge_layers=num_edge_layers,
+            heads=heads,
+            dropout=dropout,
+            jump_mode=jump_mode)
     )
+    model = EdgeClassifierNetwork_Attr_model
 
     # Параметры обучения
-    train = dict(
-        num_epochs=250,  # Количество эпох
-        score_metric='MSE'  # Метрика для выбора лучшей модели
-        # score_metric='Acc_score'  # Метрика для выбора лучшей модели
-    )
+    init_lr = 1e-3
+    final_lr = 1e-6
+    epochs_num = 100
 
-    # Настройки планировщика скорости обучения
+    # # Параметры оптимизатора
+    # optimizer = dict(
+    #     name='RAdam',  # Название оптимизатора
+    #     kwargs=dict(
+    #         lr=init_lr,  # Скорость обучения
+    #         betas=(0.9, 0.99),  # стандартные моменты
+    #         eps=1e-8,            # небольшая цифра для числовой стабильности
+    #         weight_decay=1e-6    # чуть поменьше, чем у AdamW — чтобы не переточить сеть
+    #     )
+    # )
+
+    # Параметры оптимизатора
+    optimizer = dict(
+        name='Adam',  # Название оптимизатора
+        kwargs=dict(
+            lr=init_lr,  # Скорость обучения
+            betas=(0.9, 0.99),  # стандартные моменты
+            eps=1e-8,            # небольшая цифра для числовой стабильности
+            weight_decay=1e-6    # чуть поменьше, чем у AdamW — чтобы не переточить сеть
+        )
+    )
+    
+    # Параметры планировщика скорости обучения
     scheduler = dict(
         name='StepLR',  # Стратегия изменения lr
         kwargs=dict(
             step_size=1,  # Шаг уменьшения lr
-            # Множитель уменьшения lr
-            gamma=calc_gamma(init_lr=optimizer['kwargs']['lr'],
-                             final_lr=1e-5,
-                             num_epochs=train['num_epochs'])
+            gamma=pow(final_lr / init_lr, 1 / epochs_num)  # Множитель уменьшения lr
         )
     )
 
     # Функция потерь
     criterion = dict(
-        name='MSELoss',  # Среднеквадратичная ошибка
+        name='CrossEntropyLoss',  # 'MSELoss',  # Среднеквадратичная ошибка
         kwargs=dict()
     )
 
-    # Генерация архитектурных параметров модели
-    # node_conv_layer_list = [4*2**i for i in range(6)] + [256] * 16  # Слои для конволюций узлов
-    # edge_fc_layer_list = [8*2**i for i in range(6)]  # Слои для ребер
-    # out_fc_layer_list = [32*4**i for i in list(reversed(range(4)))]  # Выходные слои
-
-    node_conv_layer_list = [2*2**(i+1) for i in range(4)] + [128] * 32  # Слои для конволюций узлов
-    edge_fc_layer_list = [2*2**(2*i+1) for i in range(4)]  # Слои для ребер
-    out_fc_layer_list = [2*2**(3*i+3) for i in list(reversed(range(3)))]  # Выходные слои
-
-    # Базовая конфигурация модели uGCN
-    ugcn_model = dict(
-        name='uGCN',
-        kwargs=dict(
-            node_conv_layer_type='SAGEConv',  # Тип слоя для узлов
-            node_conv_layer_list=node_conv_layer_list,
-            node_conv_heads=1,  # Количество голов внимания (для GAT)
-            node_conv_layer_kwargs=dict(aggr='mean'),  # Агрегация признаков узлов
-            node_global_pool_type='global_mean_pool',  # Глобальный пулинг
-            edge_fc_layer_list=edge_fc_layer_list,
-            out_fc_layer_list=out_fc_layer_list,
-            split_out_fc=None,  # Разделение выходных слоев
-        )
-    )
-    # Генерация вариантов uGCN с разными параметрами
-    # split_out_fc_list = [False, True]
-    split_out_fc_list = [False]
-    ugcn_models_list = [
-        {**ugcn_model, "kwargs": {**ugcn_model["kwargs"],  "split_out_fc": split_out_fc}}
-        for split_out_fc in split_out_fc_list
-    ]
-
-    # node_conv_layer_list = [4*2**i for i in range(6)] + [256] * 4  # Слои для конволюций узлов
-    # edge_fc_layer_list = [8*2**i for i in range(6)]  # Слои для ребер
-    # out_fc_layer_list = [32*4**i for i in list(reversed(range(4)))]  # Выходные слои
-
-    # node_conv_layer_list = [256] * 32  # Слои для конволюций узлов
-    node_conv_layer_list = [256] * 2  # Слои для конволюций узлов
-    edge_fc_layer_list = [2*2**(2*i+2) for i in range(4)]  # Слои для ребер
-    out_fc_layer_list = [2*2**(3*i+1) for i in list(reversed(range(3)))]  # Выходные слои
-
-    # Базовая конфигурация модели uGCN_NodeFeatCollect
-    ugcn_nfc_model = dict(
-        name='uGCN_NodeFeatCollect',
-        kwargs=dict(
-            node_conv_layer_type='SAGEConv',  # Тип слоя для узлов
-            node_conv_layer_list=node_conv_layer_list,
-            node_conv_heads=1,  # Количество голов внимания (для GAT)
-            node_conv_layer_kwargs=dict(aggr='mean'),  # Агрегация признаков узлов
-            node_global_pool_type='global_mean_pool',  # Глобальный пулинг
-            edge_fc_layer_list=edge_fc_layer_list,
-            out_fc_layer_list=out_fc_layer_list,
-            split_out_fc=None,  # Разделение выходных слоев
-        )
-    )
-    # Генерация вариантов uGCN_NodeFeatCollect с разными параметрами
-    # split_out_fc_list = [False, True]
-    split_out_fc_list = [False]
-    ugcn_nfc_models_list = [
-        {**ugcn_nfc_model, "kwargs": {**ugcn_nfc_model["kwargs"],  "split_out_fc": split_out_fc}}
-        for split_out_fc in split_out_fc_list
-    ]
-
-    # # Базовая конфигурация модели MultiScaleEdgeGCN
-    # msegcn_model = dict(
-    #     name='MultiScaleEdgeGCN',
-    #     kwargs=dict(
-    #         hidden_dim=None,
-    #         scales=None,
-    #     )
+    # criterion = dict(
+    #     name='L1Loss',  # 'L1Loss',  # Средняя абсолютная ошибка
+    #     kwargs=dict()
     # )
-    # # Генерация вариантов MultiScaleEdgeGCN с разными параметрами
-    # hidden_dim_list = [128, 256]
-    # scales_list = [16, 32]
-    # msegcn_models_list = [
-    #     {**msegcn_model, "kwargs": {**msegcn_model["kwargs"], "hidden_dim": hidden_dim, "scales": scales}}
-    #     for hidden_dim in hidden_dim_list
-    #     for scales in scales_list
-    # ]
+    
+    # Параметры обучения
+    train = dict(
+        num_epochs=epochs_num,  # Количество эпох
+        score_metric='Loss'  # Метрика для выбора лучшей модели
+    )
 
-    # Формирование списка конфигураций моделей
-    model_list = list()
-    # model_list.extend(ugcn_models_list)  # uGCN
-    model_list.extend(ugcn_nfc_models_list)  # uGCN_NodeFeatCollect
-    # model_list.extend(msegcn_models_list)  # MultiScaleEdgeGCN
+    # Формирование конфигураций
+    cfg = {
+        "utils": copy.deepcopy(utils),
+        "dataset": copy.deepcopy(dataset),
+        "dataloader": copy.deepcopy(dataloader),
+        "model": copy.deepcopy(model),
+        "optimizer": copy.deepcopy(optimizer),
+        "scheduler": copy.deepcopy(scheduler),
+        "criterion": copy.deepcopy(criterion),
+        "train": copy.deepcopy(train),
+    }
 
-    # Параметры для перебора: размер батча и методы нормализации
-    batch_size_list = [128, 64, 32, 16]
-    scalers_list = ['MinMaxScaler', 'StandartScaler']
+    # Настройки для отладки
+    if debug_run:
+        run_clear_ml = False
+        cfg['utils']['out_dir'] += '_test'
+        cfg['dataset']['load'] = False  # Создаем свой уменьшеный датасет
+        cfg['dataset']['fp'] = 'data_test.pt'  # Путь к тестовому датасету
+        cfg['dataset']['num_samples'] = 60  # Ограничение данных
+        cfg['train']['num_epochs'] = 10  # Сокращение эпох
+        num_samples_to_draw = 0  # Отключение визуализации
 
-    # Формирование всех комбинаций конфигураций
-    cfg_list = [
-        {
-            "utils": copy.deepcopy(utils),
-            "dataset": {**dataset, "scaler_fn": scaler_fn},
-            "dataloader": {**dataloader, "batch_size": batch_size},
-            "model": copy.deepcopy(model),
-            "optimizer": copy.deepcopy(optimizer),
-            "scheduler": copy.deepcopy(scheduler),
-            "criterion": copy.deepcopy(criterion),
-            "train": copy.deepcopy(train),
-        }
-        for model in model_list
-        for batch_size in batch_size_list
-        for scaler_fn in scalers_list
+    # Формирование уникальных имен экспериментов
+    exp_params = [
+        f"{cfg['dataset']['scaler_fn']}",
+        f"{cfg['model']['name']}",
     ]
+    if exp_mode is not None:
+        exp_params.insert(0, exp_mode)
+    #  Добавление параметра размера батча
+    exp_params.append(f"bs{cfg['dataloader']['batch_size']}")
+    exp_params.append(get_str_timestamp())  # Генерация уникального имени эксперимента с временной меткой
+    exp_name = '_'.join(exp_params)
 
-    # Запуск экспериментов
-    for idx, cfg in enumerate(cfg_list):
+    # Вывод конфигурации
+    pprint.pprint(cfg)
 
-        if idx != 0:
-            cfg['dataset']['load'] = True  # Загружать датасет после первого эксперимента
+    # Запуск эксперимента
+    exp_dir_path = osp.join(cfg['utils']['out_dir'], "zero_data")
+    # if cfg['dataset']['load'] is False:
+    #     cfg['dataset']['fp'] = osp.join(exp_dir_path, 'data.pt')
+    # exp(cfg,
+    #     project_name='HeatNet',
+    #     run_clear_ml=run_clear_ml,
+    #     log_dir=exp_dir_path)
 
-        # Настройки для отладки
-        if debug_run:
-            run_clear_ml = False
-            cfg['utils']['out_dir'] += '_test'
-            cfg['dataset']['num_samples'] = 1024  # Ограничение данных
-            cfg['train']['num_epochs'] = 10  # Сокращение эпох
-            num_samples_to_draw = 10
+    # Тестирование модели
+    results_dir_path = osp.join(exp_dir_path, 'results')
+    test_exp(exp_dir_path,
+             results_dir_path,
+             cfg,
+             num_samples_to_draw=num_samples_to_draw)
 
-        # Формирование уникальных имен экспериментов
-        exp_params = [
-            f"{cfg['dataset']['scaler_fn']}",
-            f"{cfg['model']['name']}",
-        ]
-        # Добавление параметров uGCN
-        if 'node_conv_layer_kwargs' in cfg['model']['kwargs']:
-            if 'aggr' in cfg['model']['kwargs']['node_conv_layer_kwargs']:
-                exp_params.append(f"{cfg['model']['kwargs']['node_conv_layer_kwargs']['aggr']}")
-            if 'heads' in cfg['model']['kwargs']['node_conv_layer_kwargs']:
-                exp_params.append(f"heads{cfg['model']['kwargs']['node_conv_layer_kwargs']['heads']}")
-        if 'split_out_fc' in cfg['model']['kwargs']:
-            if cfg['model']['kwargs']['split_out_fc']:
-                exp_params.append('split_out')
 
-        # Добавление параметров MultiScaleEdgeGCN
-        if 'hidden_dim' in cfg['model']['kwargs']:
-            exp_params.append(f"hd{cfg['model']['kwargs']['hidden_dim']}")
-        if 'scales' in cfg['model']['kwargs']:
-            exp_params.append(f"sc{cfg['model']['kwargs']['scales']}")
-
-        #  Добавление параметра размера батча
-        exp_params.append(f"bs{cfg['dataloader']['batch_size']}")
-
-        # Генерация уникального имени эксперимента с временной меткой
-        ts = get_str_timestamp()
-        exp_params.append(ts)
-        exp_name = '_'.join(exp_params)
-
-        # Вывод конфигурации
-        pprint.pprint(cfg)
-
-        # Запуск эксперимента
-        exp_dir_path = osp.join(cfg['utils']['out_dir'], exp_name)
-        exp(cfg,
-            project_name='HeatNet',
-            run_clear_ml=run_clear_ml,
-            log_dir=exp_dir_path)
-
-        # Тестирование модели
-        out_dir_path = osp.join(exp_dir_path, 'results')
-        test_exp(exp_dir_path,
-                 out_dir_path,
-                 num_samples_to_draw=num_samples_to_draw)

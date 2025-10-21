@@ -13,7 +13,6 @@ from exp import (
 )
 from src.utils import get_str_timestamp
 
-
 server_name = 'seth'
 root_dir = '.'
 
@@ -83,7 +82,7 @@ if __name__ == '__main__':
         fp=fp,  # Файл предобработанного датасетаДА
         node_attr=node_attr,  # Атрибуты узлов
         edge_attr=edge_attr,  # Атрибуты ребер
-        edge_label=['moded'],  # Целевые метки ребер
+        edge_label=['graph_label'],  # Целевые метки ребер
         scaler_fn='StandardScaler',  # Метод нормализации данных (None/MinMaxScaler/RobustScaler/StandardScaler)
         num_samples=None,  # Ограничение количества выборок (None для всех)
         add_ideal=True  # Добавление идеального датасета (True/False)
@@ -110,11 +109,11 @@ if __name__ == '__main__':
     edge_hidden_channels = 128
     num_edge_layers = 8
     heads = 4
-    dropout = 0.0
+    dropout = 0.2
     jump_mode = 'cat'
     
-    EdgeRegressorNetwork_Attr_model = dict(
-        name='EdgeRegressorNetwork_Attr',
+    EdgeClassifierNetwork_Attr_model = dict(
+        name='EdgeClassifierNetwork_Attr',
         kwargs=dict(
             # node_in_channels=node_in_channels,   # устанавливается в exp_cls, = размеру входным данных
             # edge_in_channels=edge_in_channels,   # устанавливается в exp_cls, = размеру входных данных
@@ -128,7 +127,7 @@ if __name__ == '__main__':
             dropout=dropout,
             jump_mode=jump_mode)
     )
-    model = EdgeRegressorNetwork_Attr_model
+    model = EdgeClassifierNetwork_Attr_model
 
     # Параметры обучения
     init_lr = 1e-3
@@ -168,7 +167,7 @@ if __name__ == '__main__':
 
     # Функция потерь
     criterion = dict(
-        name='MSELoss',  # 'MSELoss',  # Среднеквадратичная ошибка
+        name='CrossEntropyLoss',  # 'MSELoss',  # Среднеквадратичная ошибка
         kwargs=dict()
     )
 

@@ -10,7 +10,7 @@ import torch
 from torchinfo import summary
 
 from torch.utils.tensorboard import SummaryWriter
-
+from sklearn.metrics import confusion_matrix, classification_report
 
 import matplotlib.pyplot as plt
 
@@ -70,7 +70,7 @@ def exp(cfg, project_name='HeatNet', run_clear_ml=False, log_dir=None):
     # Инициализация модели
     in_node_dim = dataset[0].x.shape[1]  # Размерность признаков узлов
     in_edge_dim = dataset[0].edge_attr.shape[1]  # Размерность признаков ребер
-    out_dim = dataset[0].edge_label.shape[1]  # Размерность целевых меток
+    out_dim = dataset[0].edge_label.shape[-1]  # Размерность целевых меток
 
     # Динамический импорт класса модели
     model_fn = getattr(
@@ -122,6 +122,8 @@ def exp(cfg, project_name='HeatNet', run_clear_ml=False, log_dir=None):
     # Проверка формы вывода модели
     with torch.no_grad():
         pred_tmp = model(batch.to(device))
+        print(pred_tmp)
+        print(batch.edge_label)
         tmp_loss = criterion(pred_tmp, batch.edge_label)
     print("Размер вывода модели:", pred_tmp.shape)
     print("Тестовый лосс:", tmp_loss)
@@ -145,7 +147,7 @@ def exp(cfg, project_name='HeatNet', run_clear_ml=False, log_dir=None):
     summary(model)
     print(model)
 
-    edge_label_scaler = scalers['edge_label_scaler']  # Скейлер для меток
+    edge_label_scaler = None # Скейлер для меток
 
     # Обучение модели
     best_score = torch.inf  # Лучшее значение метрики
@@ -223,7 +225,7 @@ def test_exp(exp_dir_path, results_dir_path, cfg, num_samples_to_draw=None):
     # 4) Инициализация модели
     in_node_dim = dataset[0].x.shape[1]
     in_edge_dim = dataset[0].edge_attr.shape[1]
-    out_dim = dataset[0].edge_label.shape[1]
+    out_dim = dataset[0].edge_label.shape[-1]
     model_module = importlib.import_module(f"src.models.{cfg['model']['name']}")
     ModelClass = getattr(model_module, cfg['model']['name'])
 
@@ -265,46 +267,32 @@ def test_exp(exp_dir_path, results_dir_path, cfg, num_samples_to_draw=None):
     model.eval()
 
     # 7) Регрессионная оценка
-    edge_label_scaler = scalers['edge_label_scaler']
+    edge_label_scaler = None
     test_metrics = valid(model, test_loader, criterion, device,
                          scaler=edge_label_scaler)
-    print("Тест (регрессия): " +
+    print("Тест (классификация): " +
           "|".join(f"{k}={v:.3e}" for k, v in test_metrics.items()))
 
     # 8) Собираем предсказания по-ребру
     all_data = []
+    all_predictions = []
+    all_targets = []
+
     with torch.no_grad():
         for batch in test_loader:
             batch = batch.to(device)
-            preds = model(batch)
+            preds = model(batch)  # [batch_size, num_classes]
+            pred_classes = preds.argmax(dim=1)  # [batch_size]
+            
+            all_predictions.extend(pred_classes.cpu().numpy())
+            all_targets.extend(batch.edge_label.cpu().numpy())
+            
+            # Сохраняем предсказания для каждого графа
             offset = 0
             for d in batch.to_data_list():
-                n_e = d.edge_label.shape[0]
-                d.edge_label_pred = preds[offset:offset+n_e].cpu()
-                offset += n_e
+                d.pred_class = pred_classes[offset:offset+1].cpu()  # [1] - класс для всего графа
+                offset += 1
                 all_data.append(d.cpu())
-
-    # 9) Вычисляем идеальные диаметры для каждого ребра (где edge_moded==0)
-    # E = all_data[0].edge_label.shape[0]
-    # sum_dia = torch.zeros(E)
-    # count_dia = torch.zeros(E)
-    # for d in tqdm.tqdm(all_data, desc="Обработка классов ребер"):
-    #     _, edges_df = data_to_tables(
-    #         d,
-    #         node_attr=cfg['dataset']['node_attr'],
-    #         edge_attr=cfg['dataset']['edge_attr'],
-    #         edge_label=cfg['dataset']['edge_label'],
-    #         scalers=scalers,
-    #         edge_label_pred=[f"{v}_pred" for v in cfg['dataset']['edge_label']]
-    #     )
-    #     true_vals = torch.tensor(
-    #         edges_df[cfg['dataset']['edge_label']].values,
-    #         dtype=torch.float
-    #     )
-    #     mask0 = (d.edge_moded == 0).squeeze()
-    #     sum_dia[mask0] += true_vals[mask0, 0]
-    #     count_dia[mask0] += 1
-    # ideal_dia = (sum_dia / count_dia.clamp(min=1)).numpy()
 
     def get_t_outside(sample):
         return int(sample.global_attrs[0][0].item())
@@ -351,238 +339,139 @@ def test_exp(exp_dir_path, results_dir_path, cfg, num_samples_to_draw=None):
         return denorm
 
     # 11) Обработка каждого примера
+    correct_predictions = []
+    wrong_predictions = []
     for idx, d in enumerate(tqdm.tqdm(all_data, desc="Обработка примеров")):
         sample_name = Path(d.nodes_fp).stem
-
-        # a) получаем таблицы
-        nodes_df, edges_df = get_tables(d)
-        edges_df = add_sections(nodes_df, edges_df)
-        denorm = get_denormed_data(d, nodes_df, edges_df)
-        d = denorm
-
-        # b) true и pred значения
-        true_vals = d.edge_label[..., 0].numpy()
-        pred_vals = d.edge_label_pred[..., 0].numpy()
         
-        ideal_d = get_ideal_sample(d)
-        if ideal_d is not None:
-            ideal_nodes_df, ideal_edges_df = get_tables(ideal_d, with_pred=False)
-            ideal_denorm = get_denormed_data(ideal_d, ideal_nodes_df, ideal_edges_df, with_pred=False)
-            ideal_vals = ideal_denorm.edge_label[..., 0].numpy()
-            
-            true_dev = np.abs(true_vals - ideal_vals) / ideal_vals 
-            pred_dev = np.abs(pred_vals - ideal_vals) / ideal_vals
-        else:
-            true_dev = np.zeros_like(true_vals, dtype=np.float32)
-            pred_dev = np.zeros_like(pred_vals, dtype=np.float32)
-
-        # true_dev = np.abs(true_vals - ideal_dia)
-        # pred_dev = np.abs(pred_vals - ideal_dia)
-
-        # c) edge-level модед
-        pred_moded = np.zeros_like(pred_dev, dtype=int)
-        pred_moded[(pred_dev > 1.01) & (pred_dev <= 5.0)] = 1
-        pred_moded[pred_dev > 5.0] = 2
+        # True и predicted классы
+        true_class = d.edge_label.item()  # scalar
+        pred_class = d.pred_class.item()  # scalar
         
-        true_moded = np.zeros_like(true_dev, dtype=int)
-        true_moded[(true_dev > 1.01) & (true_dev <= 5.0)] = 1
-        true_moded[true_dev > 5.0] = 2
-
-        # d) сохраняем CSV
-        edges_df['moded'] = d.edge_moded.numpy()
-        edges_df['dev'] = true_dev
-        edges_df['pred_dev'] = pred_dev
-        edges_df['pred_moded'] = pred_moded
-
-        sample_dir = Path('.').joinpath(*(Path(d.nodes_fp).parts)[2:-1])
-        sample_results_dir_path = results_dir_path / sample_dir
-        sample_results_dir_path.mkdir(parents=True, exist_ok=True)
-
-        out_nodes_path = sample_results_dir_path / Path(d.nodes_fp).with_suffix('.csv').name
-        out_edges_path = sample_results_dir_path / Path(d.edges_fp).with_suffix('.csv').name
-        nodes_df.to_csv(out_nodes_path, index=False)
-        edges_df.to_csv(out_edges_path, index=False)
-
-        # e) визуализация
-        k = 2
-        figsize = (int(16*k), int(8*k))
-
-        def draw_data_formated(data, pos_idxs):
-            return draw_data(
-                data,
-                pos_idxs,
-                node_color_idx=0,
-                node_color_label='P',
-                edge_data_from_label=True,
-                edge_color_idx=-1,
-                edge_color_label='d',
-                additional_node_label_idx=None,
-                figsize=figsize,
-                no_draw=False,
-                font_size=10,
-                arrows=True,
-                arrowstyle='-|>',
-                alt_pos=False
-            )
-
-        if num_samples_to_draw and idx < num_samples_to_draw:
-            moded_idx_list, fig, ax, log_str_list = draw_data_formated(
-                d,
-                pos_idxs=2,
-            )
-            fig.savefig(sample_results_dir_path / f"{sample_name}.png", bbox_inches='tight')
-            plt.close(fig)
-
-        # f) graph-level классификация
-        true_idxs = np.where(true_moded == 2)[0].tolist()
-        pred_idxs = np.where(pred_moded == 2)[0].tolist()
-
-        def fmt(i):
-            u, v = int(d.edge_index[0, i]), int(d.edge_index[1, i])
-            itdev, ipdev = true_dev[i], pred_dev[i]
-            id_section = edges_df.loc[i, 'id_section']
-            return i, u, v, itdev, ipdev, id_section
-
-        def print_fmt(i, u, v, itdev, ipdev, id_section):
-            str_fmt = f'{i}({u}-{v}), true_dev={itdev:.2f}, pred_dev={ipdev:.2f}, id_section={id_section}'
-            return str_fmt
-
-        if not true_idxs and not pred_idxs:
-            # N | N
-            nn_list.append([sample_name, [], []])
-
-        elif not true_idxs and pred_idxs:
-            # N | D
-            nd_list.append([sample_name, [], [fmt(i) for i in pred_idxs]])
-
-        elif true_idxs and not pred_idxs:
-            # D | N
-            dn_list.append([sample_name, [fmt(i) for i in true_idxs], []])
-
+        # Сохраняем результаты
+        result = {
+            'sample_name': sample_name,
+            'true_class': true_class,
+            'pred_class': pred_class,
+            'correct': true_class == pred_class
+        }
+        
+        if true_class == pred_class:
+            correct_predictions.append(result)
         else:
-            hit = set(true_idxs) & set(pred_idxs)
-            if hit:
-                # D | D (correct)
-                dd_list.append([sample_name, [fmt(i) for i in true_idxs], [fmt(i) for i in pred_idxs]])
-            else:
-                # D | D (wrong)
-                dd_wrong_list.append([sample_name, [fmt(i) for i in true_idxs], [fmt(i) for i in pred_idxs]])
+            wrong_predictions.append(result)
 
+    # Confusion matrix
+    cm = confusion_matrix(all_targets, all_predictions)
+    print("Confusion Matrix:")
+    print(cm)
 
-    nn_list.sort(key=lambda v: v[0])
-    nd_list.sort(key=lambda v: v[0])
-    dn_list.sort(key=lambda v: v[0])
-    dd_list.sort(key=lambda v: v[0])
-    dd_wrong_list.sort(key=lambda v: v[0])
+    # Classification report
+    print("\nClassification Report:")
+    print(classification_report(all_targets, all_predictions))
 
-    # После цикла печатаем все вместе
-    # print()
-    print(f"=== N | N ({len(nn_list)} samples)===")
-    # for sample_name, true_idxs, pred_idxs in nn_list:
-    #     print(f'{sample_name}: '
-    #           f'OK'
-    #           )
+    # Accuracy
+    accuracy = (np.array(all_predictions) == np.array(all_targets)).mean()
+    print(f"Overall Accuracy: {accuracy:.4f}")
 
-    # print()
-    print(f"=== N | D ({len(nd_list)} samples)===")
-    # for sample_name, true_idxs, pred_idxs in nd_list:
-    #     print(f'{sample_name}: '
-    #           f'pred_defect {[print_fmt(*v) for v in pred_idxs]} '
-    #           )
+    # По классам
+    unique_classes = np.unique(all_targets)
+    for class_id in unique_classes:
+        class_mask = np.array(all_targets) == class_id
+        class_accuracy = (np.array(all_predictions)[class_mask] == class_id).mean()
+        print(f"Class {class_id} Accuracy: {class_accuracy:.4f}")
+        
+    # Детальная статистика по ошибкам
+    print("\nДетальная статистика по ошибкам:")
+    print("=" * 50)
 
-    # print()
-    print(f"=== D | N ({len(dn_list)} samples)===")
-    # for sample_name, true_idxs, pred_idxs in dn_list:
-    #     print(f'{sample_name}: '
-    #           f'true_defect {[print_fmt(*v) for v in true_idxs]} '
-    #           )
+    # Получаем отсортированные уникальные классы
+    unique_classes_sorted = sorted(unique_classes)
+    class_to_index = {cls: idx for idx, cls in enumerate(unique_classes_sorted)}
 
-    # print()
-    print(f"=== D | D ({len(dd_list)} samples)===")
-    # for sample_name, true_idxs, pred_idxs in dd_list:
-    #     if len(true_idxs) != len(pred_idxs):
-    #         print(f'{sample_name}: '
-    #               f'true_defect {[print_fmt(*v) for v in true_idxs]} '
-    #               f'pred_defect {[print_fmt(*v) for v in pred_idxs]} '
-    #               )
+    # Создаем красивую таблицу с статистикой ошибок
+    error_stats = []
+    for true_class in unique_classes_sorted:
+        true_idx = class_to_index[true_class]
+        for pred_class in unique_classes_sorted:
+            pred_idx = class_to_index[pred_class]
+            count = cm[true_idx, pred_idx]
+            if true_class != pred_class:  # Только ошибочные предсказания
+                error_stats.append({
+                    'Истинный класс': true_class,
+                    'Предсказанный класс': pred_class,
+                    'Количество ошибок': count,
+                    'Доля от всех ошибок': f"{(count / cm.sum() * 100):.2f}%",
+                    'Доля от класса': f"{(count / cm[true_idx].sum() * 100):.2f}%"
+                })
 
-    # print()
-    print(f"=== D | D wrong ({len(dd_wrong_list)} samples)===")
-    for sample_name, true_idxs, pred_idxs in dd_wrong_list:
-        print(f'{sample_name}: '
-              f'true_defect {[print_fmt(*v) for v in true_idxs]} '
-              f'pred_defect {[print_fmt(*v) for v in pred_idxs]} '
-              )
+    # Сортируем по количеству ошибок (от больших к меньшим)
+    error_stats.sort(key=lambda x: x['Количество ошибок'], reverse=True)
 
-    cm = [[len(nn_list), len(nd_list), 0],
-          [len(dn_list), len(dd_list), len(dd_wrong_list)]]
-    cm = np.array(cm, dtype=np.int32)
+    # Выводим таблицу
+    if error_stats:
+        print("Топ ошибок (по количеству):")
+        print("-" * 80)
+        for i, stat in enumerate(error_stats[:10]):  # Показываем топ-10 ошибок
+            print(f"{i+1:2d}. True:{stat['Истинный класс']} -> Pred:{stat['Предсказанный класс']}: "
+                f"{stat['Количество ошибок']:3d} ошибок "
+                f"({stat['Доля от всех ошибок']} от всех, "
+                f"{stat['Доля от класса']} от класса {stat['Истинный класс']})")
+    else:
+        print("Ошибок не обнаружено!")
 
-    def print_cm(cm, y_labels=None, x_labels=None, col_width=5):
-        fr = 2
-        if np.issubdtype(cm.dtype, np.integer):
-            format_str = '{val:>{col_width}}'
-        else:
-            format_str = '{val:{col_width}.{fr}f}'
-        format_h_str = '{val:>{col_width}}'
-        print_str = ''
-        if y_labels is None:
-            y_labels = [''] * cm.shape[0]
-        for row, yl in zip(cm, y_labels):
-            row_str = f'{format_h_str.format(val=str(yl)[:col_width], col_width=col_width)} | '
-            for col in row:
-                row_str += f'{format_str.format(val=col, col_width=col_width, fr=fr)} '
-            print_str += f'{row_str}\n'
-        if x_labels is not None:
-            header_str = f'{format_h_str.format(val="", col_width=col_width)}   '
-            for xl in x_labels:
-                header_str += f'{format_h_str.format(val=str(xl)[:col_width], col_width=col_width)} '
-            print_str += header_str
-        print(print_str)
+    # Статистика по классам
+    print("\nСтатистика по классам:")
+    print("-" * 40)
+    for class_id in unique_classes_sorted:
+        class_idx = class_to_index[class_id]
+        total_samples = cm[class_idx].sum()
+        correct_predictions = cm[class_idx, class_idx]
+        wrong_predictions = total_samples - correct_predictions
+        accuracy = correct_predictions / total_samples if total_samples > 0 else 0
+        
+        print(f"Класс {class_id}:")
+        print(f"  Всего образцов: {total_samples}")
+        print(f"  Правильно: {correct_predictions} ({accuracy:.2%})")
+        print(f"  Ошибок: {wrong_predictions} ({(wrong_predictions/total_samples):.2%})")
+        
+        # Показываем, в какие классы ошибалась модель для этого класса
+        wrong_distribution = []
+        for pred_class in unique_classes_sorted:
+            if pred_class != class_id:
+                pred_idx = class_to_index[pred_class]
+                wrong_count = cm[class_idx, pred_idx]
+                if wrong_count > 0:
+                    wrong_distribution.append(f"{pred_class}({wrong_count})")
+        
+        if wrong_distribution:
+            print(f"  Ошибочные предсказания: {', '.join(wrong_distribution)}")
+        print()
 
-    print('CM')
-    print_cm(cm, ['N', 'D'], ['N', 'D', 'Dwr'], col_width=5)
+    # Общая статистика
+    total_samples = len(all_targets)
+    total_errors = total_samples - np.trace(cm)
+    overall_accuracy = np.trace(cm) / total_samples
 
-    cm_norm = cm.copy().astype(np.float32)
-    cm_norm /= cm.sum(axis=1)[:, np.newaxis]
+    print("ОБЩАЯ СТАТИСТИКА:")
+    print(f"Всего образцов: {total_samples}")
+    print(f"Общая точность: {overall_accuracy:.2%}")
+    print(f"Всего ошибок: {total_errors} ({(total_errors/total_samples):.2%})")
 
-    print('CM (norm, row)')
-    print_cm(cm_norm, ['N', 'D'], ['N', 'D', 'Dwr'], col_width=5)
-
-    cm_norm_all = cm.copy().astype(np.float32)
-    cm_norm_all /= cm.sum()
-
-    print('CM (norm, all)')
-    print_cm(cm_norm_all, ['N', 'D'], ['N', 'D', 'Dwr'], col_width=5)
-
-    errors = []
-    # i, u, v, itdev, ipdev
-    errors += [['N', true_idxs[0][3], true_idxs[0][4]] for _, true_idxs, _ in dn_list]
-    errors += [['D', true_idxs[0][3], true_idxs[0][4]] for _, true_idxs, _ in dd_list]
-
-    errors_df = pd.DataFrame(errors, columns=['class', 'true_dev', 'pred_dev'])
-    en_df = errors_df[errors_df['class'] == 'N']
-    ed_df = errors_df[errors_df['class'] == 'D']
-    
-    # Определяем общий диапазон и одинаковые бины
-    min_dev = errors_df['true_dev'].min()
-    max_dev = errors_df['true_dev'].max()
-    n_bins  = 100
-    bins    = np.linspace(min_dev, max_dev, n_bins + 1)
-    
-    fig, ax = plt.subplots(figsize=(8,5))
-    ax.hist(en_df['true_dev'], bins=bins, color='red',   alpha=0.5, label='N')
-    ax.hist(ed_df['true_dev'], bins=bins, color='green', alpha=0.5, label='D')
-
-    ax.set_xlabel('Величина отклонения [%]')
-    ax.set_ylabel('Кол-во примеров')
-    ax.set_title('Распределение отклонения в графах с дефектами')
-    ax.legend()
-
-    plt.grid()
-    plt.tight_layout()
-    plt.savefig('hist.png')
-
-    # plt.show()
+    # Самые частые типы ошибок
+    if error_stats:
+        most_common_error = error_stats[0]
+        print(f"Самая частая ошибка: класс {most_common_error['Истинный класс']} -> "
+            f"класс {most_common_error['Предсказанный класс']} "
+            f"({most_common_error['Количество ошибок']} раз, "
+            f"{most_common_error['Доля от всех ошибок']} от всех ошибок)")
+    # Визуализация распределения классов (ДОБАВИТЬ)
+    plt.figure(figsize=(10, 6))
+    plt.hist(all_targets, bins=len(unique_classes), alpha=0.7, label='True')
+    plt.hist(all_predictions, bins=len(unique_classes), alpha=0.7, label='Predicted')
+    plt.xlabel('Class ID')
+    plt.ylabel('Count')
+    plt.title('Class Distribution - True vs Predicted')
+    plt.legend()
+    plt.savefig(results_dir_path / 'class_distribution.png')
     plt.close()
-

@@ -15,22 +15,28 @@ def get_str_timestamp(timestamp=None):
     return date_time.strftime("%Y%m%d_%H%M%S")
 
 
-def compute_metrics(pred, target, scaler=None):
-    """Вычисление метрик качества: MAE, MSE и RMSE (после денормализации)."""
-    mae = F.l1_loss(pred, target).item()  # Средняя абсолютная ошибка
-    mse = F.mse_loss(pred, target).item()  # Средняя квадратичная ошибка
-
-    ret = {"MAE": mae, "MSE": mse}
-    if scaler is not None:
-        # Обратное преобразование предсказаний и целей
-        real_pred = torch.Tensor(scaler.inverse_transform(pred.detach().numpy()))
-        real_target = torch.Tensor(scaler.inverse_transform(target.detach().numpy()))
-        real_mae = F.l1_loss(real_pred, real_target).item()
-        real_mse = F.mse_loss(real_pred, real_target).item()
-        ret["real_MAE"] = real_mae  # MAE в исходном масштабе
-        ret["real_MSE"] = real_mse  # MSE в исходном масштабе
+def compute_metrics(pred, target, scaler, num_classes=73):
+    """Вычисление метрик качества для классификации: Accuracy, Precision, Recall, F1."""
+    # pred: [batch_size, num_classes] - логиты или вероятности
+    # target: [batch_size] - истинные классы
+    
+    # Преобразуем предсказания в классы
+    pred_classes = pred.argmax(dim=1)
+    
+    # Accuracy
+    accuracy = (pred_classes == target).float().mean().item()
+    
+    # Basic metrics
+    correct = (pred_classes == target).sum().item()
+    total = target.size(0)
+    
+    ret = {
+        "Accuracy": accuracy,
+        "Correct": correct,
+        "Total": total
+    }
+    
     return ret
-
 
 def compute_metrics_cls(pred, target, scaler=None):
     """
