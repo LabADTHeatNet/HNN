@@ -180,13 +180,14 @@ def load_dataframes(files_list):
         
         users = edges_df.loc[edges_df['Vid_usr'], ['id_in', 'id_out']]
         nodes_usr =set(pd.concat([users['id_in'], users['id_out']]))
+        nodes_src = set(nodes_df.loc[nodes_df['types_src'] | nodes_df['types_usr']].index) 
         if junction_nodes is None:
             deg_out, deg_in = get_node_degrees(edges_df)
             mapped_degrees = nodes_df.index.map(lambda x : deg_out.get(x, 0)) + nodes_df.index.map(lambda x : deg_in.get(x, 0))
             junction_nodes = set(nodes_df.loc[mapped_degrees > 2].index)
             
         # Обнуляем большую часть данных исходя из того, что в реальной жизни их не будет    
-        nodes_df.loc[~nodes_df.index.isin(nodes_usr | junction_nodes), ['P', 'P_ideal', 'Temp_ideal' 'Temp', ]] = 0
+        nodes_df.loc[~nodes_df.index.isin(nodes_usr | junction_nodes | nodes_src), ['P', 'P_ideal', 'Temp_ideal' 'Temp', ]] = 0
          
         deviation = np.abs(edges_df['moded'] - 1.0)
         
