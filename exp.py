@@ -277,6 +277,7 @@ def test_exp(exp_dir_path, results_dir_path, cfg, num_samples_to_draw=None):
     all_data = []
     all_predictions = []
     all_targets = []
+    scalers['edge_label_scaler'] = None
 
     with torch.no_grad():
         for batch in test_loader:
@@ -290,7 +291,7 @@ def test_exp(exp_dir_path, results_dir_path, cfg, num_samples_to_draw=None):
             # Сохраняем предсказания для каждого графа
             offset = 0
             for d in batch.to_data_list():
-                d.pred_class = pred_classes[offset:offset+1].cpu()  # [1] - класс для всего графа
+                d.edge_label_pred = pred_classes[offset:offset+1].cpu()  # [1] - класс для всего графа
                 offset += 1
                 all_data.append(d.cpu())
 
@@ -304,12 +305,7 @@ def test_exp(exp_dir_path, results_dir_path, cfg, num_samples_to_draw=None):
     def get_ideal_sample(sample):
         return ideal_data_dict.get(get_t_outside(sample), None)
 
-    # 10) Переменные для graph-level метрик
-    nn_list = []         # N | N
-    nd_list = []         # N | D
-    dn_list = []         # D | N
-    dd_list = []         # D | D (correct)
-    dd_wrong_list = []   # D | D (wrong)
+
     def get_tables(d, with_pred=True):
         """Получает таблицы узлов и ребер из графа."""
         nodes_df, edges_df = data_to_tables(
@@ -346,8 +342,10 @@ def test_exp(exp_dir_path, results_dir_path, cfg, num_samples_to_draw=None):
         
         # True и predicted классы
         true_class = d.edge_label.item()  # scalar
-        pred_class = d.pred_class.item()  # scalar
-        
+        pred_class = d.edge_label_pred.item()  # scalar
+        nodes_df, edges_df = get_tables(d)
+        denorm = get_denormed_data(d, nodes_df, edges_df)
+        d = denorm
         # Сохраняем результаты
         result = {
             'sample_name': sample_name,
@@ -355,11 +353,21 @@ def test_exp(exp_dir_path, results_dir_path, cfg, num_samples_to_draw=None):
             'pred_class': pred_class,
             'correct': true_class == pred_class
         }
+
+        sample_dir = Path('.').joinpath(*(Path(d.nodes_fp).parts)[2:-1])
+        sample_results_dir_path = results_dir_path / sample_dir
+        sample_results_dir_path.mkdir(parents=True, exist_ok=True)
+
+        out_nodes_path = sample_results_dir_path / Path(d.nodes_fp).with_suffix('.csv').name
+        out_edges_path = sample_results_dir_path / Path(d.edges_fp).with_suffix('.csv').name
+        nodes_df.to_csv(out_nodes_path, index=False)
+        edges_df.to_csv(out_edges_path, index=False)
         
         if true_class == pred_class:
             correct_predictions.append(result)
         else:
             wrong_predictions.append(result)
+            
 
     # Confusion matrix
     cm = confusion_matrix(all_targets, all_predictions)

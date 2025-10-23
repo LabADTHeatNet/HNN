@@ -46,7 +46,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # ]
 
 exp_dir_path_list = [
-    'out_Termo/all_data',
+    'out_Termo/zero_data',
 ]
 
 for exp_dir_path in exp_dir_path_list:

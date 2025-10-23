@@ -132,7 +132,7 @@ if __name__ == '__main__':
     # Параметры обучения
     init_lr = 1e-3
     final_lr = 1e-6
-    epochs_num = 1
+    epochs_num = 100
 
     # # Параметры оптимизатора
     # optimizer = dict(

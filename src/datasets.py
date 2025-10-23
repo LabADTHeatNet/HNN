@@ -186,8 +186,8 @@ def load_dataframes(files_list):
             junction_nodes = set(nodes_df.loc[mapped_degrees > 2].index)
             
         # Обнуляем большую часть данных исходя из того, что в реальной жизни их не будет    
-        nodes_df.loc[~nodes_df.index.isin(nodes_usr | junction_nodes), ['P', 'Temp', 'P_ideal', 'Temp_ideal']] = 0
-        
+        nodes_df.loc[~nodes_df.index.isin(nodes_usr | junction_nodes), ['P', 'P_ideal', 'Temp_ideal' 'Temp', ]] = 0
+         
         deviation = np.abs(edges_df['moded'] - 1.0)
         
         # ВЫНЕСТИ КУДА-ТО ЭТОТ ПАРАМЕТР
