@@ -46,7 +46,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # ]
 
 exp_dir_path_list = [
-    'out_Termo/Termo_StandardScaler_EdgeRegressorNetwork_Attr_bs32_20250814_140232',
+    'out_Termo/all_data',
 ]
 
 for exp_dir_path in exp_dir_path_list:
