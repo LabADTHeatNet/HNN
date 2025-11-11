@@ -24,7 +24,8 @@ from src.utils import (
     valid,
     weighted_mse_loss,
     FocalRegressionLoss,
-    FocalLoss
+    FocalLoss,
+    MulticlassFocalLoss,
 )
 from src.plots import (
     draw_data
@@ -103,6 +104,8 @@ def exp(cfg, project_name='HeatNet', run_clear_ml=False, log_dir=None):
             criterion_fn = FocalRegressionLoss
         if cfg['criterion']['name'] == 'FocalLoss':
             criterion_fn = FocalLoss
+        if cfg['criterion']['name'] == 'MulticlassFocalLoss':
+            criterion_fn = MulticlassFocalLoss
         elif cfg['criterion']['name'] == 'weighted_mse_loss':
             criterion_fn = weighted_mse_loss
         else:
@@ -245,6 +248,8 @@ def test_exp(exp_dir_path, results_dir_path, cfg, num_samples_to_draw=None):
             criterion_fn = FocalRegressionLoss
         if cfg['criterion']['name'] == 'FocalLoss':
             criterion_fn = FocalLoss
+        if cfg['criterion']['name'] == 'MulticlassFocalLoss':
+            criterion_fn = MulticlassFocalLoss
         elif cfg['criterion']['name'] == 'weighted_mse_loss':
             criterion_fn = weighted_mse_loss
         else:

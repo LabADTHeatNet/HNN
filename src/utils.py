@@ -115,7 +115,26 @@ class FocalLoss(torch.nn.Module):
             return loss.sum()
         else:
             return loss
+        
+class MulticlassFocalLoss(torch.nn.Module):
+    def __init__(self, weight: None | float = 1.0, gamma: float = 2.0, reduction: str = "mean"):
+        super().__init__()
+        self.weight = weight
+        self.gamma = gamma
+        self.reduction = reduction
+    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        # targets: float tensor 0.0 или 1.0, same shape as logits
+        ce_loss = F.cross_entropy(logits, targets, reduction='none', weight=self.weight)
+        p_t = torch.exp(-ce_loss)
+        focal_term = (1 - p_t) ** self.gamma
+        loss = focal_term * ce_loss
 
+        if self.reduction == "mean":
+            return loss.mean()
+        elif self.reduction == "sum":
+            return loss.sum()
+        else:
+            return loss
 
 def epoch(model, loader, optimizer, criterion, device, train=True, scaler=None, max_norm=1.0):
     """Одна эпоха обучения или валидации."""

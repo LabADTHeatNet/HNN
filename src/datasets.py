@@ -129,14 +129,22 @@ def add_sections(nodes_df, edges_df):
             
     
 
-def load_dataframes(files_list):
+def load_dataframes(files_list, zero_data = True):
     """Загрузка данных узлов и ребер из CSV-файлов."""
     nodes_dataframes = []
     edges_dataframes = []
 
     id_section = None
     junction_nodes = None
+
     for nodes_path, edges_path in tqdm.tqdm(files_list):
+        fwd_subgraph = False
+        bwd_subgraph = False
+        if 'fwd' in edges_path or 'bwd' in edges_path:
+            if 'fwd' in edges_path:
+                fwd_subgraph = True
+            else:
+                bwd_subgraph = True
         nodes_df = pd.read_csv(nodes_path, sep='\t')
         edges_df = pd.read_csv(edges_path, sep='\t')
         # edges_df['mod'] = edges_df['moded']
@@ -172,23 +180,41 @@ def load_dataframes(files_list):
         
         # Добавление параметра секции труб
         edges_df['id_section'] = -1
-        if id_section is None:
+        if id_section is None and not fwd_subgraph and not bwd_subgraph:
             edges_df = add_sections(nodes_df, edges_df)
             id_section = edges_df['id_section']
         else:
+            if fwd_subgraph:
+                id_section = np.array([ 0,  0, 41, 24,  0, 13, 18, 18, 18, 30, 31, 10, 11, 11, 20, 21, 21,
+                        1,  1,  0,  0, 11,  9,  9, 10,  5,  3,  3,  3,  3,  3,  3,  3, 37,
+                        8,  9, 14, 25, 25, 25, 32, 19, 11,  6,  2, 15, 15, 16,  4, 15, 16,
+                    14, 25, 25, 35, 10, 19, 18, 32, 36, 36, 36, 36, 36, 38,  8,  9, 14,
+                    35, 36, 32, 32, 32, 18, 11,  6,  2,  4, 15, 16, 16, 14, 25, 35, 10,
+                    10, 19, 18, 32, 32, 32, 36, 36, 42, 39, 29, 17, 12, 33, 34, 22, 23,
+                        7, 40, 28, 27, 26])
+            if bwd_subgraph:
+                id_section = np.array([ 0,  0, 41, 24,  0, 13, 18, 18, 18, 30, 31, 10, 11, 11, 20, 21, 21,
+                        1,  1,  0,  0, 11,  9,  9, 10,  5,  3,  3,  3,  3,  3,  3,  3, 37,
+                        8,  9, 14, 25, 25, 25, 32, 19, 11,  6,  2, 15, 15, 16,  4, 15, 16,
+                    14, 25, 25, 35, 10, 19, 18, 32, 36, 36, 36, 36, 36, 38,  8,  9, 14,
+                    35, 36, 32, 32, 32, 18, 11,  6,  2,  4, 15, 16, 16, 14, 25, 35, 10,
+                    10, 19, 18, 32, 32, 32, 36, 36,  0, 42, 39, 29, 17, 12, 33, 34, 22,
+                    23,  7, 40, 28, 27, 26])
             edges_df['id_section'] = id_section
         
         users = edges_df.loc[edges_df['Vid_usr'], ['id_in', 'id_out']]
         nodes_usr =set(pd.concat([users['id_in'], users['id_out']]))
-        nodes_src = set(nodes_df.loc[nodes_df['types_src'] | nodes_df['types_usr']].index) 
+        hardcoded_id = 186 if not bwd_subgraph else 107
+        nodes_src = set(nodes_df.loc[nodes_df['types_src'] | nodes_df['types_usr'] | (nodes_df['id'] == hardcoded_id)].index) 
         if junction_nodes is None:
             deg_out, deg_in = get_node_degrees(edges_df)
             mapped_degrees = nodes_df.index.map(lambda x : deg_out.get(x, 0)) + nodes_df.index.map(lambda x : deg_in.get(x, 0))
             junction_nodes = set(nodes_df.loc[mapped_degrees > 2].index)
             
-        # Обнуляем большую часть данных исходя из того, что в реальной жизни их не будет    
-        nodes_df.loc[~nodes_df.index.isin(nodes_usr | junction_nodes | nodes_src), ['P', 'P_ideal', 'Temp_ideal' 'Temp', ]] = 0
-         
+        # Обнуляем большую часть данных исходя из того, что в реальной жизни их не будет
+        if zero_data:    
+            nodes_df.loc[~nodes_df.index.isin(nodes_usr | nodes_src), ['P', 'Temp']] = 0
+          
         deviation = np.abs(edges_df['moded'] - 1.0)
         
         # ВЫНЕСТИ КУДА-ТО ЭТОТ ПАРАМЕТР
@@ -311,16 +337,21 @@ def process_dataframes(nodes_df, edges_df,
 
     # Извлечение глобальных параметров
     t_outside = get_t_outside(nodes_fp)  # Температура воздуха снаружи
-    q_out_node = nodes_df.loc[nodes_df['id'] == 4, 'Q'].values[0]  # Расход на узле с id == 4
-    t_out_node = nodes_df.loc[nodes_df['id'] == 4, 'Temp'].values[0]  # Температура на узле с id == 4
-    t_in_node = nodes_df.loc[nodes_df['id'] == 186, 'Temp'].values[0]  # Температура на узле с id == 186
-    global_attrs = torch.tensor([t_outside, q_out_node, t_out_node, t_in_node], dtype=torch.float).unsqueeze(0)  # [1, global_dim]
+    # q_out_node = nodes_df.loc[nodes_df['id'] == 4, 'Q'].values[0]  # Расход на узле с id == 4
+    # t_out_node = nodes_df.loc[nodes_df['id'] == 4, 'Temp'].values[0]  # Температура на узле с id == 4
+    # t_in_node = nodes_df.loc[nodes_df['id'] == 186, 'Temp'].values[0]  # Температура на узле с id == 186
+    # global_attrs = torch.tensor([t_outside, q_out_node, t_out_node, t_in_node], dtype=torch.float).unsqueeze(0)  # [1, global_dim]
+    global_attrs = torch.tensor([t_outside], dtype=torch.float).unsqueeze(0)  # [1, global_dim]
 
     # Извлечение признаков узлов
     x = torch.tensor(nodes_df[node_attr].values, dtype=torch.float)
 
     # Построение edge_index (связи между узлами)
-    t_edge_index = torch.tensor(np.array([edges_df['id_in'].values, edges_df['id_out'].values]), dtype=torch.long)
+    t_edge_index = torch.tensor( np.array([edges_df['id_out'].values, edges_df['id_in'].values]), dtype=torch.long)
+    
+    # t_edge_index = torch.tensor(np.hstack([np.array([edges_df['id_in'].values, edges_df['id_out'].values]), np.array([edges_df['id_out'].values, edges_df['id_in'].values])]), dtype=torch.long)
+    
+    
 
     # Извлечение признаков и меток ребер
     t_edge_attr = torch.tensor(edges_df[edge_attr].values, dtype=torch.float)
@@ -352,7 +383,7 @@ def create_dataset(root_dir, node_attr, edge_attr, edge_label, num_samples=None,
         print(f"[IDEAL] Найдено {len(ideal_files_list)} пар файлов.")
 
         print("[IDEAL] Считывание таблиц...")
-        ideal_nodes_dataframes, ideal_edges_dataframes = load_dataframes(ideal_files_list)
+        ideal_nodes_dataframes, ideal_edges_dataframes = load_dataframes(ideal_files_list, zero_data=True)
         
         ideal_ne_df_list = dict()
         for (n_fp, _), in_df, ie_df  in zip(ideal_files_list,  ideal_nodes_dataframes, ideal_edges_dataframes):
@@ -367,7 +398,7 @@ def create_dataset(root_dir, node_attr, edge_attr, edge_label, num_samples=None,
     files_list = files_list[:num_samples]  # Ограничение количества выборок
 
     print("Считывание таблиц...")
-    nodes_dataframes, edges_dataframes = load_dataframes(files_list)
+    nodes_dataframes, edges_dataframes = load_dataframes(files_list, zero_data=True)
 
 
     if add_ideal:
