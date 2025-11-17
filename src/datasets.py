@@ -12,6 +12,7 @@ from torch.utils.data import random_split
 
 from torch_geometric.data import Data, InMemoryDataset
 from torch_geometric.loader import DataLoader
+from torch_geometric.utils import to_undirected
 from sklearn.preprocessing import LabelEncoder
 import tqdm
 
@@ -42,6 +43,17 @@ def find_file_pairs(root_dir, ideal=False):
             file_pairs.append([str(nodes_path), str(edges_path)])
 
     return file_pairs
+
+def get_global_parameters(file_pairs):
+    global_dataframes = []
+    for nodes_path, edges_path in file_pairs:
+        global_path = nodes_path.replace("nodes", "global")
+        if Path(global_path).exists():
+            global_df = pd.read_csv(global_path, sep= '\t')
+            global_dataframes.append(global_df)
+    return global_dataframes        
+
+        
 
 def get_node_degrees (edges_df):
     node_deg_out = {}
@@ -233,8 +245,8 @@ def load_dataframes(files_list, zero_data = True):
     return nodes_dataframes, edges_dataframes
 
 
-def fit_global_scalers(nodes_dataframes, edges_dataframes,
-                       node_attr, edge_attr, edge_label, scaler_fn=None):
+def fit_global_scalers(nodes_dataframes, edges_dataframes, global_dataframes,
+                       node_attr, edge_attr, global_attr, edge_label, scaler_fn=None):
     """Обучение скейлеров на всех данных для согласованной нормализации."""
     if scaler_fn is not None:
         # Динамический импорт класса скейлера из sklearn
@@ -243,74 +255,84 @@ def fit_global_scalers(nodes_dataframes, edges_dataframes,
         # Инициализация скейлеров
         node_attr_scaler = scaler_fn()
         edge_attr_scaler = scaler_fn()
+        global_scaler = scaler_fn()
         # edge_label_scaler = scaler_fn()
         # edge_label_scaler = IdealValueScaler(edges_dataframes[0][edge_label])
 
         # Объединение данных из всех файлов
         all_node_attr_data = pd.concat([df[node_attr] for df in nodes_dataframes], ignore_index=True)
         all_edge_attr_data = pd.concat([df[edge_attr] for df in edges_dataframes], ignore_index=True)
+        all_global_data = pd.concat([df[global_attr] for df in global_dataframes], ignore_index=True)
         # all_edge_label_data = pd.concat([df[edge_label] for df in edges_dataframes], ignore_index=True)
 
         # Обучение скейлеров
         node_attr_scaler.fit(all_node_attr_data)
         edge_attr_scaler.fit(all_edge_attr_data)
+        global_scaler.fit(all_global_data)
         # edge_label_scaler.fit(all_edge_label_data)
 
-        # Обучение скейлеров
-        node_attr_scaler.fit(all_node_attr_data)
-        edge_attr_scaler.fit(all_edge_attr_data)
-        # edge_label_scaler.fit(all_edge_label_data)
+        # # Обучение скейлеров
+        # node_attr_scaler.fit(all_node_attr_data)
+        # edge_attr_scaler.fit(all_edge_attr_data)
+        # # edge_label_scaler.fit(all_edge_label_data)
 
     else:
         node_attr_scaler = None
         edge_attr_scaler = None
         edge_label_scaler = None
-
+        global_scaler = None
     return {
         'node_attr_scaler': node_attr_scaler,
         'edge_attr_scaler': edge_attr_scaler,
-        # 'edge_label_scaler': edge_label_scaler
+        # 'edge_label_scaler': edge_label_scaler,
+        'global_scaler' : global_scaler
     }
 
 
-def normalize_dataframes(nodes_dataframes, edges_dataframes,
-                         node_attr, edge_attr, edge_label,
+def normalize_dataframes(nodes_dataframes, edges_dataframes, global_dataframes,
+                         node_attr, edge_attr, global_attr, edge_label,
                          scalers, edge_label_pred=None, num_workers=4):
     """Применение обученных скейлеров к данным с использованием многопоточности."""
 
     def normalize_pair(args):
-        nodes_df, edges_df = args
+        nodes_df, edges_df, global_df = args
         # Нормализация признаков узлов, ребер и меток
         if scalers['node_attr_scaler'] is not None:
             nodes_df[node_attr] = scalers['node_attr_scaler'].transform(nodes_df[node_attr])
         if scalers['edge_attr_scaler'] is not None:
             edges_df[edge_attr] = scalers['edge_attr_scaler'].transform(edges_df[edge_attr])
+        if scalers['global_scaler'] is not None:
+            global_df[global_attr] = scalers['global_scaler'].transform(global_df[global_attr])
         # if scalers['edge_label_scaler'] is not None:
         #     edges_df[edge_label] = scalers['edge_label_scaler'].transform(edges_df[edge_label])
         # if edge_label_pred is not None:
         #     if scalers['edge_label_scaler'] is not None:
         #         edges_df[edge_label_pred] = scalers['edge_label_scaler'].transform(edges_df[edge_label_pred])
-        return nodes_df, edges_df
+        return nodes_df, edges_df, global_df
 
-    pairs = list(zip(nodes_dataframes, edges_dataframes))
+    triplets = list(zip(nodes_dataframes, edges_dataframes, global_dataframes))
     results = []
     with ThreadPoolExecutor(max_workers=num_workers) as executor:
-        for res in tqdm.tqdm(executor.map(normalize_pair, pairs), total=len(pairs)):
+        for res in tqdm.tqdm(executor.map(normalize_pair, triplets), total=len(triplets)):
             results.append(res)
 
-    nodes_dataframes, edges_dataframes = zip(*results)
-    return list(nodes_dataframes), list(edges_dataframes)
+    nodes_dataframes, edges_dataframes, global_dataframes = zip(*results)
+    return list(nodes_dataframes), list(edges_dataframes), list(global_dataframes)
 
 
-def denormalize_dataframes(nodes_dataframes, edges_dataframes,
-                           node_attr, edge_attr, edge_label,
+def denormalize_dataframes(nodes_dataframes, edges_dataframes, global_dataframes,
+                           node_attr, edge_attr, global_attr, edge_label,
                            scalers, edge_label_pred=None):
     """Обратное преобразование данных (денормализация)."""
+    if global_dataframes is not None:
+        raise NotImplementedError()
     for nodes_df, edges_df in zip(nodes_dataframes, edges_dataframes):
         if scalers['node_attr_scaler'] is not None:
             nodes_df[node_attr] = scalers['node_attr_scaler'].inverse_transform(nodes_df[node_attr])
         if scalers['edge_attr_scaler'] is not None:
             edges_df[edge_attr] = scalers['edge_attr_scaler'].inverse_transform(edges_df[edge_attr])
+        # if scalers['global_scaler'] is not None:
+        #     global_df[global_attr] = scalers['global_scaler'].inverse_transform(global_df[global_attr])
         if scalers['edge_label_scaler'] is not None:
             edges_df[edge_label] = scalers['edge_label_scaler'].inverse_transform(edges_df[edge_label])
         if edge_label_pred is not None:
@@ -330,19 +352,21 @@ def get_t_outside(fp):
     return int(tout_part[len('Tout_'):])  # Возвращаем температуру как целое число
 
 
-def process_dataframes(nodes_df, edges_df,
+def process_dataframes(nodes_df, edges_df, global_df,
                        node_attr, edge_attr, edge_label,
                        nodes_fp, edges_fp):
     """Преобразование DataFrame в объект PyG Data."""
 
     # Извлечение глобальных параметров
     t_outside = get_t_outside(nodes_fp)  # Температура воздуха снаружи
-    # q_out_node = nodes_df.loc[nodes_df['id'] == 4, 'Q'].values[0]  # Расход на узле с id == 4
-    # t_out_node = nodes_df.loc[nodes_df['id'] == 4, 'Temp'].values[0]  # Температура на узле с id == 4
-    # t_in_node = nodes_df.loc[nodes_df['id'] == 186, 'Temp'].values[0]  # Температура на узле с id == 186
-    # global_attrs = torch.tensor([t_outside, q_out_node, t_out_node, t_in_node], dtype=torch.float).unsqueeze(0)  # [1, global_dim]
-    global_attrs = torch.tensor([t_outside], dtype=torch.float).unsqueeze(0)  # [1, global_dim]
+    
 
+    q_out_node = global_df.loc[global_df['id'] == 4, 'Q'].values[0]  # Расход на узле с id == 4
+    t_out_node = global_df.loc[global_df['id'] == 4, 'Temp'].values[0]  # Температура на узле с id == 4
+    t_in_node = global_df.loc[global_df['id'] == 186, 'Temp'].values[0]  # Температура на узле с id == 186
+    global_attrs = torch.tensor([t_outside, q_out_node, t_out_node, t_in_node], dtype=torch.float).unsqueeze(0)  # [1, global_dim]
+    # global_attrs = torch.tensor([t_outside], dtype=torch.float).unsqueeze(0)  # [1, global_dim]
+    
     # Извлечение признаков узлов
     x = torch.tensor(nodes_df[node_attr].values, dtype=torch.float)
 
@@ -360,6 +384,10 @@ def process_dataframes(nodes_df, edges_df,
     
     t_edge_moded = torch.tensor(edges_df[['moded']].values, dtype=torch.float)
 
+    # Ненаправленный:
+    
+    # t_edge_index, t_edge_attr = to_undirected(edge_index=t_edge_index, edge_attr=t_edge_attr, reduce= "add")
+    
     # Создание объекта Data для PyTorch Geometric
     data = Data(
         global_attrs=global_attrs,
@@ -374,7 +402,7 @@ def process_dataframes(nodes_df, edges_df,
     return data
 
 
-def create_dataset(root_dir, node_attr, edge_attr, edge_label, num_samples=None, seed=42, scaler_fn=None, add_ideal=False):
+def create_dataset(root_dir, node_attr, edge_attr, edge_label, num_samples=None, seed=42, scaler_fn=None, add_ideal=False, global_attr = ['Q', 'Temp']):
     """Создание датасета из файлов с нормализацией и преобразованием в графы."""
     
     if add_ideal:
@@ -384,6 +412,10 @@ def create_dataset(root_dir, node_attr, edge_attr, edge_label, num_samples=None,
 
         print("[IDEAL] Считывание таблиц...")
         ideal_nodes_dataframes, ideal_edges_dataframes = load_dataframes(ideal_files_list, zero_data=True)
+        ideal_global_dataframes = get_global_parameters(ideal_files_list)
+        
+        if len(ideal_global_dataframes) != len(ideal_nodes_dataframes):
+            ideal_global_dataframes = ideal_nodes_dataframes
         
         ideal_ne_df_list = dict()
         for (n_fp, _), in_df, ie_df  in zip(ideal_files_list,  ideal_nodes_dataframes, ideal_edges_dataframes):
@@ -399,8 +431,11 @@ def create_dataset(root_dir, node_attr, edge_attr, edge_label, num_samples=None,
 
     print("Считывание таблиц...")
     nodes_dataframes, edges_dataframes = load_dataframes(files_list, zero_data=True)
-
-
+    
+    global_dataframes = get_global_parameters(files_list)
+    if len(global_dataframes) != len(nodes_dataframes):
+        global_dataframes = nodes_dataframes
+        
     if add_ideal:
         tag = '_ideal'
         nodes_ideal_attrs = []
@@ -413,7 +448,7 @@ def create_dataset(root_dir, node_attr, edge_attr, edge_label, num_samples=None,
                 edges_ideal_attrs.append(ea[:-len(tag)])  # Удаляем '_ideal' из имени атрибута
 
         print("[IDEAL] Добавление идеальных данных в таблицы...")
-        for nodes_df, edges_df, (nodes_fp, edges_fp) in tqdm.tqdm(zip(nodes_dataframes, edges_dataframes, files_list), total=len(nodes_dataframes)):
+        for nodes_df, edges_df, (nodes_fp, edges_fp)  in tqdm.tqdm(zip(nodes_dataframes, edges_dataframes, files_list), total=len(nodes_dataframes)):
             # Если есть идеальные данные, добавляем их в глобальные параметры
             t_outside = get_t_outside(nodes_fp)
             if t_outside in ideal_ne_df_list:
@@ -438,24 +473,24 @@ def create_dataset(root_dir, node_attr, edge_attr, edge_label, num_samples=None,
                     ideal_edges_df[f'{k}_ideal'] = ideal_edges_df[k]
 
     print("Обучение скейлеров...")
-    scalers = fit_global_scalers(nodes_dataframes, edges_dataframes,
-                                 node_attr, edge_attr, edge_label, scaler_fn=scaler_fn)
+    scalers = fit_global_scalers(nodes_dataframes, edges_dataframes, global_dataframes,
+                                 node_attr, edge_attr, global_attr, edge_label, scaler_fn=scaler_fn)
 
     if add_ideal:
         print("[IDEAL] Нормализация таблиц...")
-        ideal_nodes_dataframes, ideal_edges_dataframes = normalize_dataframes(
-            ideal_nodes_dataframes, ideal_edges_dataframes, node_attr, edge_attr, edge_label, scalers)
+        ideal_nodes_dataframes, ideal_edges_dataframes, ideal_global_dataframes = normalize_dataframes(
+            ideal_nodes_dataframes, ideal_edges_dataframes, ideal_global_dataframes, node_attr, edge_attr, global_attr, edge_label, scalers)
 
     print("Нормализация таблиц...")
-    nodes_dataframes, edges_dataframes = normalize_dataframes(
-        nodes_dataframes, edges_dataframes, node_attr, edge_attr, edge_label, scalers)
+    nodes_dataframes, edges_dataframes, global_dataframes = normalize_dataframes(
+        nodes_dataframes, edges_dataframes, global_dataframes, node_attr, edge_attr, global_attr, edge_label, scalers)
 
     ideal_dataset = []
     if add_ideal:
         print("[IDEAL] Конвертация в PyG Data...")
-        for nodes_df, edges_df, (nodes_fp, edges_fp) in tqdm.tqdm(zip(ideal_nodes_dataframes, ideal_edges_dataframes, ideal_files_list), total=len(ideal_nodes_dataframes)):
+        for nodes_df, edges_df, global_df,  (nodes_fp, edges_fp) in tqdm.tqdm(zip(ideal_nodes_dataframes, ideal_edges_dataframes, ideal_global_dataframes, ideal_files_list), total=len(ideal_nodes_dataframes)):
             try:
-                data = process_dataframes(nodes_df, edges_df, node_attr, edge_attr, edge_label, nodes_fp, edges_fp)
+                data = process_dataframes(nodes_df, edges_df, global_df,  node_attr, edge_attr, edge_label, nodes_fp, edges_fp)
                 ideal_dataset.append(data)
             except Exception as e:
                 error_msg = f"[IDEAL] Ошибка обработки файлов:\n- Узлы: {nodes_fp}\n- Ребра: {edges_fp}\nПричина: {str(e)}"
@@ -465,9 +500,9 @@ def create_dataset(root_dir, node_attr, edge_attr, edge_label, num_samples=None,
 
     print("Конвертация в PyG Data...")
     dataset = []
-    for nodes_df, edges_df, (nodes_fp, edges_fp) in tqdm.tqdm(zip(nodes_dataframes, edges_dataframes, files_list), total=len(nodes_dataframes)):
+    for nodes_df, edges_df, global_df, (nodes_fp, edges_fp) in tqdm.tqdm(zip(nodes_dataframes, edges_dataframes, global_dataframes, files_list), total=len(nodes_dataframes)):
         try:
-            data = process_dataframes(nodes_df, edges_df, node_attr, edge_attr, edge_label, nodes_fp, edges_fp)
+            data = process_dataframes(nodes_df, edges_df, global_df, node_attr, edge_attr, edge_label, nodes_fp, edges_fp)
             dataset.append(data)
         except Exception as e:
             error_msg = f"Ошибка обработки файлов:\n- Узлы: {nodes_fp}\n- Ребра: {edges_fp}\nПричина: {str(e)}"
@@ -558,7 +593,7 @@ def prepare_data(dataset_config, dataloader_config, seed=42, prepare_dataloaders
 
 def data_to_tables(in_data,
                    node_attr, edge_attr, edge_label,
-                   scalers=None, edge_label_pred=None):
+                   scalers=None, edge_label_pred=None, global_attr= ['Q', 'Temp']):
     """Обратное преобразование Data в таблицы с денормализацией."""
     data = in_data.cpu()
     nodes_df = pd.DataFrame(data.x.numpy(), columns=node_attr)
@@ -578,7 +613,7 @@ def data_to_tables(in_data,
     # Денормализация
     if scalers:
         nodes_df, edges_df = denormalize_dataframes(
-            [nodes_df], [edges_df], node_attr, edge_attr, [], scalers)
+            [nodes_df], [edges_df], None,  node_attr, edge_attr, global_attr, [], scalers)
         nodes_df = nodes_df[0]
         edges_df = edges_df[0]
 

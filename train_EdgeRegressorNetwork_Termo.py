@@ -23,11 +23,12 @@ if __name__ == '__main__':
 
     # Определение устройства (GPU/CPU)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    # device = 'cpu'
 
     # Утилитарные параметры
     utils = dict(
         server_name=server_name,
-        out_dir='out_Termo_bwd',  # Выходная директория для всех результатов
+        out_dir='out_Termo',  # Выходная директория для всех результатов
         device=device,
         seed=42  # Фиксация случайности для воспроизводимости
     )
@@ -72,12 +73,12 @@ if __name__ == '__main__':
     fp = 'data_Termo_Heat.pt'
     node_attr = ['pos_x', 'pos_y', 'types_def', 'types_usr', 'types_src', 'P', 'Temp', 'P_ideal', 'Temp_ideal']  # Атрибуты узлов
     edge_attr = ['d', 'l', 'Vid_fwd', 'Vid_bwd', 'Vid_usr']  # Атрибуты ребер
-    in_global_dim = 1  # Размерность глобальных параметров (например, для Termo: [t_outside, q_out_node, t_out_node, t_in_node])
+    in_global_dim = 4  # Размерность глобальных параметров (например, для Termo: [t_outside, q_out_node, t_out_node, t_in_node])
 
     # Параметры датасета
     dataset = dict(
         datasets_dir=osp.join(root_dir, 'datasets'),  # Путь к данным
-        name='Termo_model_bwd',  # Имя датасета\
+        name='Termo_model',  # Имя датасета\
         load=False,  # Загружать предобработанный датасет из файла
         fp=fp,  # Файл предобработанного датасета
         node_attr=node_attr,  # Атрибуты узлов
@@ -134,11 +135,16 @@ if __name__ == '__main__':
     init_lr = 1e-3
     final_lr = 1e-6
     epochs_num = 100
-    defect_weight = 1.0    # базовый вес для классов с дефектами
-    no_defect_weight = 0.5 # меньший вес для "нет дефекта"
-    class_weights = [defect_weight for i in range(44)]
-    class_weights[43] = no_defect_weight
+    # defect_weight = 1.0    # базовый вес для классов с дефектами
+    # no_defect_weight = 0.5 # меньший вес для "нет дефекта"
+    # class_weights = [defect_weight for i in range(44)]
+    # class_weights[43] = no_defect_weight
 
+
+    defect_weight = 0.5    # базовый вес для классов с дефектами
+    no_defect_weight = 1.0 # меньший вес для "нет дефекта"
+    class_weights = [defect_weight for i in range(73)]
+    class_weights[72] = no_defect_weight
     # # Параметры оптимизатора
     # optimizer = dict(
     #     name='RAdam',  # Название оптимизатора
