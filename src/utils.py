@@ -141,18 +141,35 @@ def epoch(model, loader, optimizer, criterion, device, train=True, scaler=None, 
     total_loss = 0
     all_preds, all_targets = [], []
     for data in loader:
-        data = data.to(device)
         if train:
             optimizer.zero_grad()
 
-        # Прямой проход
-        edge_pred = model(data)
-        loss = criterion(edge_pred, data.edge_label)
+        if isinstance(data, list):
+            # Парный батч (fwd, bwd)
+            batch_fwd, batch_bwd = data
+            batch_fwd = batch_fwd.to(device)
+            batch_bwd = batch_bwd.to(device)
+            
+            # Предсказания для обоих направлений
+            edge_pred_fwd = model(batch_fwd)
+            edge_pred_bwd = model(batch_bwd)
+            
+            # Вычисление потерь для обоих направлений
+            loss_fwd = criterion(edge_pred_fwd, batch_fwd.edge_label)
+            loss_bwd = criterion(edge_pred_bwd, batch_bwd.edge_label)
+            loss = (loss_fwd + loss_bwd) / 2
+            
+            all_preds.extend([edge_pred_fwd.detach().cpu(), edge_pred_bwd.detach().cpu()])
+            all_targets.extend([batch_fwd.edge_label.detach().cpu(), batch_bwd.edge_label.detach().cpu()])
+            
+        else:
+            # Одиночный батч
+            data = data.to(device)
+            edge_pred = model(data)
+            loss = criterion(edge_pred, data.edge_label)
+            all_preds.append(edge_pred.detach().cpu())
+            all_targets.append(data.edge_label.detach().cpu())
         total_loss += loss.item()
-
-        # Сохранение предсказаний и целей для метрик
-        all_preds.append(edge_pred.cpu())
-        all_targets.append(data.edge_label.cpu())
 
         if train:
             loss.backward()  # Обратное распространение
@@ -161,7 +178,7 @@ def epoch(model, loader, optimizer, criterion, device, train=True, scaler=None, 
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
             # ----------------------------
 
-            optimizer.step()  # Обновление весов
+            optimizer.step() 
 
     # Агрегация метрик
     all_preds = torch.cat(all_preds, dim=0)

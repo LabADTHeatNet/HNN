@@ -61,7 +61,8 @@ def exp(cfg, project_name='HeatNet', run_clear_ml=False, log_dir=None):
 
     # Подготовка данных
     dataset, scalers, train_loader, val_loader, test_loader, ideal_dataset = prepare_data(cfg['dataset'], cfg['dataloader'], cfg['utils']['seed'])
-
+    if cfg['dataset']['name'] == 'Termo_model_fwd_and_bwd':
+        dataset= dataset[0]
     # Пример вывода информации о батче
     for batch in train_loader:
         print("Пример батча:")
@@ -124,10 +125,17 @@ def exp(cfg, project_name='HeatNet', run_clear_ml=False, log_dir=None):
 
     # Проверка формы вывода модели
     with torch.no_grad():
-        pred_tmp = model(batch.to(device))
-        print(pred_tmp)
-        print(batch.edge_label)
-        tmp_loss = criterion(pred_tmp, batch.edge_label)
+        if isinstance(batch, list):
+            batch_fwd, batch_bwd = batch
+            pred_fwd = model(batch_fwd.to(device))
+            pred_bwd = model(batch_bwd.to(device))
+            loss_fwd = criterion(pred_fwd, batch_fwd.edge_label)
+            loss_bwd = criterion(pred_bwd, batch_bwd.edge_label)
+            tmp_loss = (loss_fwd + loss_bwd) / 2
+            pred_tmp = (pred_fwd + pred_bwd) / 2
+        else:
+            pred_tmp = model(batch.to(device))
+            tmp_loss = criterion(pred_tmp, batch.edge_label)
     print("Размер вывода модели:", pred_tmp.shape)
     print("Тестовый лосс:", tmp_loss)
 

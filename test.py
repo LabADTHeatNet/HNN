@@ -46,7 +46,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # ]
 
 exp_dir_path_list = [
-    'out_Termo_fwd/cross_entropy_weights_smoothing_only_consumers_bwdtest',
+    'out_Termo_both/both_datasets_test_bwd',
 ]
 
 for exp_dir_path in exp_dir_path_list:

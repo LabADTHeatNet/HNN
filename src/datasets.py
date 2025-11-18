@@ -9,8 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import torch
 from torch.utils.data import random_split
-
-from torch_geometric.data import Data, InMemoryDataset
+from torch_geometric.data import Data, Dataset, InMemoryDataset, Batch
 from torch_geometric.loader import DataLoader
 from torch_geometric.utils import to_undirected
 from sklearn.preprocessing import LabelEncoder
@@ -18,6 +17,21 @@ import tqdm
 
 from src.utils import get_str_timestamp
 
+class PairedGraphDataset(Dataset):
+    def __init__(self, fwd, bwd):
+        self.fwd = fwd
+        self.bwd = bwd
+
+    def __len__(self):
+        return len(self.fwd)
+
+    def __getitem__(self, idx):
+        return self.fwd[idx], self.bwd[idx]
+    
+def paired_collate(batch):
+    G1 = [g[0] for g in batch]
+    G2 = [g[1] for g in batch]
+    return Batch.from_data_list(G1), Batch.from_data_list(G2)
 
 def find_file_pairs(root_dir, ideal=False):
     """Поиск пар файлов nodes и edges в директории и поддиректориях с использованием pathlib."""
@@ -524,7 +538,11 @@ def split_dataset(dataset, train_ratio, val_ratio, seed=42):
     torch.manual_seed(seed)
     return random_split(dataset, [train_len, val_len, test_len])
 
-
+def create_dataloaders_both(train_dataset, val_dataset, test_dataset, batch_size=16):
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn= paired_collate)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn= paired_collate)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn= paired_collate)
+    return train_loader, val_loader, test_loader
 def create_dataloaders(train_dataset, val_dataset, test_dataset, batch_size=16):
     """Создание DataLoader для обучения, валидации и тестирования."""
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
@@ -550,17 +568,43 @@ def prepare_data(dataset_config, dataloader_config, seed=42, prepare_dataloaders
         print(f"Датасет загружен из файла: {dataset_config['fp']}")
     else:
         print("Создание датасета...")
-        dataset_path = osp.join(dataset_config['datasets_dir'], dataset_config['name'])
-        dataset, scalers, ideal_dataset = create_dataset(
-            str(dataset_path),
-            dataset_config['node_attr'],
-            dataset_config['edge_attr'],
-            dataset_config['edge_label'],
-            num_samples=dataset_config.get('num_samples'),
-            seed=seed,
-            scaler_fn=dataset_config.get('scaler_fn'),
-            add_ideal=dataset_config.get('add_ideal', False)
-        )
+        if dataset_config['name'] != 'Termo_model_fwd_and_bwd':
+            dataset_path = osp.join(dataset_config['datasets_dir'], dataset_config['name'])
+            dataset, scalers, ideal_dataset = create_dataset(
+                str(dataset_path),
+                dataset_config['node_attr'],
+                dataset_config['edge_attr'],
+                dataset_config['edge_label'],
+                num_samples=dataset_config.get('num_samples'),
+                seed=seed,
+                scaler_fn=dataset_config.get('scaler_fn'),
+                add_ideal=dataset_config.get('add_ideal', False)
+            )
+        if dataset_config['name'] == 'Termo_model_fwd_and_bwd':
+            dataset_path = osp.join(dataset_config['datasets_dir'], 'Termo_model_fwd')
+            dataset_fwd, scalers_fwd, ideal_dataset_fwd = create_dataset(
+                str(dataset_path),
+                dataset_config['node_attr'],
+                dataset_config['edge_attr'],
+                dataset_config['edge_label'],
+                num_samples=dataset_config.get('num_samples'),
+                seed=seed,
+                scaler_fn=dataset_config.get('scaler_fn'),
+                add_ideal=dataset_config.get('add_ideal', False)
+            )
+            dataset_path = osp.join(dataset_config['datasets_dir'], 'Termo_model_bwd')
+            dataset_bwd, scalers_bwd, ideal_dataset_bwd = create_dataset(
+                str(dataset_path),
+                dataset_config['node_attr'],
+                dataset_config['edge_attr'],
+                dataset_config['edge_label'],
+                num_samples=dataset_config.get('num_samples'),
+                seed=seed,
+                scaler_fn=dataset_config.get('scaler_fn'),
+                add_ideal=dataset_config.get('add_ideal', False)
+            )
+            scalers, ideal_dataset = scalers_fwd, ideal_dataset_fwd # Заглушка
+            dataset = PairedGraphDataset(dataset_fwd, dataset_bwd)
         torch.save({'dataset': dataset, 'scalers': scalers, 'ideal_dataset': ideal_dataset}, dataset_config['fp'])
         print(f"Датасет сохранен в файл: {dataset_config['fp']}")
 
@@ -580,7 +624,14 @@ def prepare_data(dataset_config, dataloader_config, seed=42, prepare_dataloaders
     print(f"Train: {len(train_dataset)}, Val: {len(val_dataset)}, Test: {len(test_dataset)}")
 
     # Создание DataLoader'ов
-    train_loader, val_loader, test_loader = create_dataloaders(
+    # train_loader, val_loader, test_loader = create_dataloaders(
+    #     train_dataset,
+    #     val_dataset,
+    #     test_dataset,
+    #     batch_size=dataloader_config.get('batch_size', 1),
+    #     **dataloader_config.get('kwargs', {})
+    # )
+    train_loader, val_loader, test_loader = create_dataloaders_both(
         train_dataset,
         val_dataset,
         test_dataset,
