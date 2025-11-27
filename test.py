@@ -46,7 +46,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # ]
 
 exp_dir_path_list = [
-    'out_Termo_both/both_datasets_test_bwd',
+    'out_Termo_both/both_datasets_improved_graphs',
 ]
 
 for exp_dir_path in exp_dir_path_list:
@@ -57,3 +57,4 @@ for exp_dir_path in exp_dir_path_list:
     cfg['dataset']['fp'] = 'data_Termo_Heat_full.pt'
     test_exp(exp_dir_path, out_dir_path, cfg, num_samples_to_draw=0)
 # %%
+

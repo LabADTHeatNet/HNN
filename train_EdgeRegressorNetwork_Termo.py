@@ -73,7 +73,7 @@ if __name__ == '__main__':
     fp = 'data_Termo_Heat.pt'
     node_attr = ['pos_x', 'pos_y', 'types_def', 'types_usr', 'types_src', 'P', 'Temp', 'P_ideal', 'Temp_ideal']  # Атрибуты узлов
     edge_attr = ['d', 'l', 'Vid_fwd', 'Vid_bwd', 'Vid_usr']  # Атрибуты ребер
-    in_global_dim = 4  # Размерность глобальных параметров (например, для Termo: [t_outside, q_out_node, t_out_node, t_in_node])
+    in_global_dim = 5  # Размерность глобальных параметров (например, для Termo: [t_outside, q_out_node, t_out_node, t_in_node])
 
     # Параметры датасета
     dataset = dict(
@@ -86,7 +86,7 @@ if __name__ == '__main__':
         edge_label=['graph_label'],  # Целевые метки ребер
         scaler_fn='StandardScaler',  # Метод нормализации данных (None/MinMaxScaler/RobustScaler/StandardScaler)
         num_samples=None,  # Ограничение количества выборок (None для всех)
-        add_ideal=True  # Добавление идеального датасета (True/False)
+        add_ideal=True # Добавление идеального датасета (True/False)
     )
 
     # Параметры загрузчиков данных
@@ -134,7 +134,7 @@ if __name__ == '__main__':
     # Параметры обучения
     init_lr = 1e-3
     final_lr = 1e-6
-    epochs_num = 100
+    epochs_num = 3
     defect_weight = 1.0    # базовый вес для классов с дефектами
     no_defect_weight = 0.5 # меньший вес для "нет дефекта"
     class_weights = [defect_weight for i in range(44)]

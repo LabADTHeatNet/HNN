@@ -4,6 +4,7 @@ import copy
 import json
 import tqdm
 
+import os
 import numpy as np
 import pandas as pd
 import torch
@@ -226,273 +227,329 @@ def test_exp(exp_dir_path, results_dir_path, cfg, num_samples_to_draw=None):
         cfg['dataloader'],
         cfg['utils']['seed']
     )
-
-    # 3) Пример батча
-    for batch in test_loader:
-        print("Пример тестового батча:")
-        print(batch)
-        break
-
-    # 4) Инициализация модели
-    in_node_dim = dataset[0].x.shape[1]
-    in_edge_dim = dataset[0].edge_attr.shape[1]
-    out_dim = dataset[0].edge_label.shape[-1]
-    model_module = importlib.import_module(f"src.models.{cfg['model']['name']}")
-    ModelClass = getattr(model_module, cfg['model']['name'])
-
-    def create_model():
-        return ModelClass(
-            in_node_dim=in_node_dim,
-            in_edge_dim=in_edge_dim,
-            out_dim=out_dim,
-            **cfg['model']['kwargs']
-        )
-
-    model = create_model().to(device)
-
-    # 5) Функция потерь
-    if cfg['criterion']['name'] is not None:
-        if cfg['criterion']['name'] == 'FocalRegressionLoss':
-            criterion_fn = FocalRegressionLoss
-        if cfg['criterion']['name'] == 'FocalLoss':
-            criterion_fn = FocalLoss
-        if cfg['criterion']['name'] == 'MulticlassFocalLoss':
-            criterion_fn = MulticlassFocalLoss
-        elif cfg['criterion']['name'] == 'weighted_mse_loss':
-            criterion_fn = weighted_mse_loss
-        else:
-            criterion_fn = getattr(importlib.import_module('torch.nn'), cfg['criterion']['name'])
-        if 'pos_weight' in cfg['criterion']['kwargs']:
-            cfg['criterion']['kwargs']['pos_weight'] = torch.Tensor(
-                cfg['criterion']['kwargs']['pos_weight']
-            ).to(device)
-        if 'weight' in cfg['criterion']['kwargs']:
-            cfg['criterion']['kwargs']['weight'] = torch.Tensor(
-                cfg['criterion']['kwargs']['weight']
-            ).to(device)
-        criterion = criterion_fn(**cfg['criterion']['kwargs'])
-    else:
-        criterion = None
-
-    # 6) Загрузка весов
-    state = torch.load(exp_dir_path / 'best_model.pth', weights_only=True)
-    model.load_state_dict(state)
-    model.eval()
-
-    # 7) Регрессионная оценка
-    edge_label_scaler = None
-    test_metrics = valid(model, test_loader, criterion, device,
-                         scaler=edge_label_scaler)
-    print("Тест (классификация): " +
-          "|".join(f"{k}={v:.3e}" for k, v in test_metrics.items()))
-
-    # 8) Собираем предсказания по-ребру
-    all_data = []
-    all_predictions = []
-    all_targets = []
-    scalers['edge_label_scaler'] = None
-
-    with torch.no_grad():
+    names_dict= {0: 'fwd', 1: 'bwd'}
+    def test(exp_dir_path, results_dir_path, cfg, dataset, scalers, test_loader, ideal_dataset, i = None):
+        if i is not None:
+            print(f"Тестирование {names_dict[i]} данных")
+        # 3) Пример батча
         for batch in test_loader:
-            batch = batch.to(device)
-            preds = model(batch)  # [batch_size, num_classes]
-            pred_classes = preds.argmax(dim=1)  # [batch_size]
-            
-            all_predictions.extend(pred_classes.cpu().numpy())
-            all_targets.extend(batch.edge_label.cpu().numpy())
-            
-            # Сохраняем предсказания для каждого графа
-            offset = 0
-            for d in batch.to_data_list():
-                d.edge_label_pred = pred_classes[offset:offset+1].cpu()  # [1] - класс для всего графа
-                offset += 1
-                all_data.append(d.cpu())
+            print("Пример тестового батча:")
+            if i is not None:
+                print(batch[i])
+            else:
+                print(batch)
+            break
 
-    def get_t_outside(sample):
-        return int(sample.global_attrs[0][0].item())
-    
-    ideal_data_dict = dict()
-    for sample in ideal_dataset:
-        ideal_data_dict[get_t_outside(sample)] = sample
+        # 4) Инициализация модели
+        in_node_dim = dataset[0].x.shape[1]
+        in_edge_dim = dataset[0].edge_attr.shape[1]
+        out_dim = dataset[0].edge_label.shape[-1]
+        model_module = importlib.import_module(f"src.models.{cfg['model']['name']}")
+        ModelClass = getattr(model_module, cfg['model']['name'])
 
-    def get_ideal_sample(sample):
-        return ideal_data_dict.get(get_t_outside(sample), None)
-
-
-    def get_tables(d, with_pred=True):
-        """Получает таблицы узлов и ребер из графа."""
-        nodes_df, edges_df = data_to_tables(
-            d,
-            node_attr=cfg['dataset']['node_attr'],
-            edge_attr=cfg['dataset']['edge_attr'],
-            edge_label=cfg['dataset']['edge_label'],
-            scalers=scalers,
-            edge_label_pred=[f"{v}_pred" for v in cfg['dataset']['edge_label']] if with_pred else None
-        )
-        return nodes_df, edges_df
-    
-    def get_denormed_data(d, nodes_df, edges_df, with_pred=True):
-        """Получает денормализованные данные из графа."""
-        denorm = d.clone().cpu()
-        denorm.x = torch.tensor(
-            nodes_df[cfg['dataset']['node_attr']].values, dtype=torch.float)
-        denorm.edge_attr = torch.tensor(
-            edges_df[cfg['dataset']['edge_attr']].values, dtype=torch.float)
-        denorm.edge_label = torch.tensor(
-            edges_df[cfg['dataset']['edge_label']].values, dtype=torch.float)
-        if with_pred:
-            denorm.edge_label_pred = torch.tensor(
-                edges_df[[f'{v}_pred' for v in cfg['dataset']['edge_label']]].values,
-                dtype=torch.float
+        def create_model():
+            return ModelClass(
+                in_node_dim=in_node_dim,
+                in_edge_dim=in_edge_dim,
+                out_dim=out_dim,
+                **cfg['model']['kwargs']
             )
-        return denorm
 
-    # 11) Обработка каждого примера
-    correct_predictions = []
-    wrong_predictions = []
-    for idx, d in enumerate(tqdm.tqdm(all_data, desc="Обработка примеров")):
-        sample_name = Path(d.nodes_fp).stem
-        
-        # True и predicted классы
-        true_class = d.edge_label.item()  # scalar
-        pred_class = d.edge_label_pred.item()  # scalar
-        nodes_df, edges_df = get_tables(d)
-        denorm = get_denormed_data(d, nodes_df, edges_df)
-        d = denorm
-        # Сохраняем результаты
-        result = {
-            'sample_name': sample_name,
-            'true_class': true_class,
-            'pred_class': pred_class,
-            'correct': true_class == pred_class
-        }
+        model = create_model().to(device)
 
-        sample_dir = Path('.').joinpath(*(Path(d.nodes_fp).parts)[2:-1])
-        sample_results_dir_path = results_dir_path / sample_dir
-        sample_results_dir_path.mkdir(parents=True, exist_ok=True)
-
-        out_nodes_path = sample_results_dir_path / Path(d.nodes_fp).with_suffix('.csv').name
-        out_edges_path = sample_results_dir_path / Path(d.edges_fp).with_suffix('.csv').name
-        nodes_df.to_csv(out_nodes_path, index=False)
-        edges_df.to_csv(out_edges_path, index=False)
-        
-        if true_class == pred_class:
-            correct_predictions.append(result)
+        # 5) Функция потерь
+        if cfg['criterion']['name'] is not None:
+            if cfg['criterion']['name'] == 'FocalRegressionLoss':
+                criterion_fn = FocalRegressionLoss
+            if cfg['criterion']['name'] == 'FocalLoss':
+                criterion_fn = FocalLoss
+            if cfg['criterion']['name'] == 'MulticlassFocalLoss':
+                criterion_fn = MulticlassFocalLoss
+            elif cfg['criterion']['name'] == 'weighted_mse_loss':
+                criterion_fn = weighted_mse_loss
+            else:
+                criterion_fn = getattr(importlib.import_module('torch.nn'), cfg['criterion']['name'])
+            if 'pos_weight' in cfg['criterion']['kwargs']:
+                cfg['criterion']['kwargs']['pos_weight'] = torch.Tensor(
+                    cfg['criterion']['kwargs']['pos_weight']
+                ).to(device)
+            if 'weight' in cfg['criterion']['kwargs']:
+                cfg['criterion']['kwargs']['weight'] = torch.Tensor(
+                    cfg['criterion']['kwargs']['weight']
+                ).to(device)
+            criterion = criterion_fn(**cfg['criterion']['kwargs'])
         else:
-            wrong_predictions.append(result)
+            criterion = None
+
+        # 6) Загрузка весов
+        state = torch.load(exp_dir_path / 'best_model.pth', weights_only=True)
+        model.load_state_dict(state)
+        model.eval()
+
+        # 7) Регрессионная оценка
+        edge_label_scaler = None
+        test_metrics = valid(model, test_loader, criterion, device,
+                            scaler=edge_label_scaler)
+        print("Тест (классификация): " +
+            "|".join(f"{k}={v:.3e}" for k, v in test_metrics.items()))
+
+        # 8) Собираем предсказания по-ребру
+        all_data = []
+        all_predictions = []
+        all_targets = []
+        scalers['edge_label_scaler'] = None
+
+        with torch.no_grad():
+            for batch in test_loader:
+                if i is None:
+                    batch = batch.to(device)
+                else:
+                    batch = batch[i].to(device)
+                    
+                preds = model(batch)  # [batch_size, num_classes]
+                pred_classes = preds.argmax(dim=1)  # [batch_size]
+                
+                all_predictions.extend(pred_classes.cpu().numpy())
+                all_targets.extend(batch.edge_label.cpu().numpy())
+                
+                # Сохраняем предсказания для каждого графа
+                offset = 0
+                for d in batch.to_data_list():
+                    d.edge_label_pred = pred_classes[offset:offset+1].cpu()  # [1] - класс для всего графа
+                    offset += 1
+                    all_data.append(d.cpu())
+
+        def get_t_outside(sample):
+            return int(sample.global_attrs[0][0].item())
+        
+        ideal_data_dict = dict()
+        for sample in ideal_dataset:
+            ideal_data_dict[get_t_outside(sample)] = sample
+
+        def get_ideal_sample(sample):
+            return ideal_data_dict.get(get_t_outside(sample), None)
+
+
+        def get_tables(d, with_pred=True):
+            """Получает таблицы узлов и ребер из графа."""
+            nodes_df, edges_df = data_to_tables(
+                d,
+                node_attr=cfg['dataset']['node_attr'],
+                edge_attr=cfg['dataset']['edge_attr'],
+                edge_label=cfg['dataset']['edge_label'],
+                scalers=scalers,
+                edge_label_pred=[f"{v}_pred" for v in cfg['dataset']['edge_label']] if with_pred else None
+            )
+            return nodes_df, edges_df
+        
+        def get_denormed_data(d, nodes_df, edges_df, with_pred=True):
+            """Получает денормализованные данные из графа."""
+            denorm = d.clone().cpu()
+            denorm.x = torch.tensor(
+                nodes_df[cfg['dataset']['node_attr']].values, dtype=torch.float)
+            denorm.edge_attr = torch.tensor(
+                edges_df[cfg['dataset']['edge_attr']].values, dtype=torch.float)
+            denorm.edge_label = torch.tensor(
+                edges_df[cfg['dataset']['edge_label']].values, dtype=torch.float)
+            if with_pred:
+                denorm.edge_label_pred = torch.tensor(
+                    edges_df[[f'{v}_pred' for v in cfg['dataset']['edge_label']]].values,
+                    dtype=torch.float
+                )
+            return denorm
+
+        # 11) Обработка каждого примера
+        correct_predictions = []
+        wrong_predictions = []
+        for idx, d in enumerate(tqdm.tqdm(all_data, desc="Обработка примеров")):
+            sample_name = Path(d.nodes_fp).stem
             
+            # True и predicted классы
+            true_class = d.edge_label.item()  # scalar
+            pred_class = d.edge_label_pred.item()  # scalar
+            nodes_df, edges_df = get_tables(d)
+            denorm = get_denormed_data(d, nodes_df, edges_df)
+            d = denorm
+            # Сохраняем результаты
+            result = {
+                'sample_name': sample_name,
+                'true_class': true_class,
+                'pred_class': pred_class,
+                'correct': true_class == pred_class
+            }
 
-    # Confusion matrix
-    cm = confusion_matrix(all_targets, all_predictions)
-    print("Confusion Matrix:")
-    print(cm)
+            sample_dir = Path('.').joinpath(*(Path(d.nodes_fp).parts)[2:-1])
+            sample_results_dir_path = results_dir_path / sample_dir
+            sample_results_dir_path.mkdir(parents=True, exist_ok=True)
 
-    # Classification report
-    print("\nClassification Report:")
-    print(classification_report(all_targets, all_predictions))
+            out_nodes_path = sample_results_dir_path / Path(d.nodes_fp).with_suffix('.csv').name
+            out_edges_path = sample_results_dir_path / Path(d.edges_fp).with_suffix('.csv').name
+            nodes_df.to_csv(out_nodes_path, index=False)
+            edges_df.to_csv(out_edges_path, index=False)
+            
+            if true_class == pred_class:
+                correct_predictions.append(result)
+            else:
+                wrong_predictions.append(result)
+                
 
-    # Accuracy
-    accuracy = (np.array(all_predictions) == np.array(all_targets)).mean()
-    print(f"Overall Accuracy: {accuracy:.4f}")
+        # Confusion matrix
+        cm = confusion_matrix(all_targets, all_predictions)
+        print("Confusion Matrix:")
+        print(cm)
 
-    # По классам
-    unique_classes = np.unique(all_targets)
-    for class_id in unique_classes:
-        class_mask = np.array(all_targets) == class_id
-        class_accuracy = (np.array(all_predictions)[class_mask] == class_id).mean()
-        print(f"Class {class_id} Accuracy: {class_accuracy:.4f}")
+        # Classification report
+        print("\nClassification Report:")
+        print(classification_report(all_targets, all_predictions))
+
+        # Accuracy
+        accuracy = (np.array(all_predictions) == np.array(all_targets)).mean()
+        print(f"Overall Accuracy: {accuracy:.4f}")
+        unique_classes = np.unique(all_targets)
+        last_class = max(unique_classes)  # Последний класс как negative
         
-    # Детальная статистика по ошибкам
-    print("\nДетальная статистика по ошибкам:")
-    print("=" * 50)
-
-    # Получаем отсортированные уникальные классы
-    unique_classes_sorted = sorted(unique_classes)
-    class_to_index = {cls: idx for idx, cls in enumerate(unique_classes_sorted)}
-
-    # Создаем красивую таблицу с статистикой ошибок
-    error_stats = []
-    for true_class in unique_classes_sorted:
-        true_idx = class_to_index[true_class]
-        for pred_class in unique_classes_sorted:
-            pred_idx = class_to_index[pred_class]
-            count = cm[true_idx, pred_idx]
-            if true_class != pred_class:  # Только ошибочные предсказания
-                error_stats.append({
-                    'Истинный класс': true_class,
-                    'Предсказанный класс': pred_class,
-                    'Количество ошибок': count,
-                    'Доля от всех ошибок': f"{(count / cm.sum() * 100):.2f}%",
-                    'Доля от класса': f"{(count / cm[true_idx].sum() * 100):.2f}%"
-                })
-
-    # Сортируем по количеству ошибок (от больших к меньшим)
-    error_stats.sort(key=lambda x: x['Количество ошибок'], reverse=True)
-
-    # Выводим таблицу
-    if error_stats:
-        print("Топ ошибок (по количеству):")
-        print("-" * 80)
-        for i, stat in enumerate(error_stats[:10]):  # Показываем топ-10 ошибок
-            print(f"{i+1:2d}. True:{stat['Истинный класс']} -> Pred:{stat['Предсказанный класс']}: "
-                f"{stat['Количество ошибок']:3d} ошибок "
-                f"({stat['Доля от всех ошибок']} от всех, "
-                f"{stat['Доля от класса']} от класса {stat['Истинный класс']})")
-    else:
-        print("Ошибок не обнаружено!")
-
-    # Статистика по классам
-    print("\nСтатистика по классам:")
-    print("-" * 40)
-    for class_id in unique_classes_sorted:
-        class_idx = class_to_index[class_id]
-        total_samples = cm[class_idx].sum()
-        correct_predictions = cm[class_idx, class_idx]
-        wrong_predictions = total_samples - correct_predictions
-        accuracy = correct_predictions / total_samples if total_samples > 0 else 0
+        # Преобразуем в бинарные метки
+        binary_targets = np.array(all_targets) != last_class  # True для positive (все классы кроме последнего)
+        binary_predictions = np.array(all_predictions) != last_class  # True для positive
         
-        print(f"Класс {class_id}:")
-        print(f"  Всего образцов: {total_samples}")
-        print(f"  Правильно: {correct_predictions} ({accuracy:.2%})")
-        print(f"  Ошибок: {wrong_predictions} ({(wrong_predictions/total_samples):.2%})")
+        # Вычисляем метрики
+        from sklearn.metrics import precision_score, recall_score, f1_score
         
-        # Показываем, в какие классы ошибалась модель для этого класса
-        wrong_distribution = []
-        for pred_class in unique_classes_sorted:
-            if pred_class != class_id:
+        precision = precision_score(binary_targets, binary_predictions, zero_division=0)
+        recall = recall_score(binary_targets, binary_predictions, zero_division=0)
+        f1 = f1_score(binary_targets, binary_predictions, zero_division=0)
+        
+        print("\n" + "="*50)
+        print("БИНАРНАЯ КЛАССИФИКАЦИЯ:")
+        print(f"Positive классы: все кроме {last_class}")
+        print(f"Negative класс: {last_class}")
+        print(f"Precision: {precision:.4f}")
+        print(f"Recall: {recall:.4f}")
+        print(f"F1-score: {f1:.4f}")
+        
+        # Дополнительная статистика для бинарной классификации
+        tn = np.sum((~binary_targets) & (~binary_predictions))  # True Negative
+        fp = np.sum((~binary_targets) & binary_predictions)     # False Positive
+        fn = np.sum(binary_targets & (~binary_predictions))     # False Negative
+        tp = np.sum(binary_targets & binary_predictions)        # True Positive
+        
+        print(f"\nМатрица ошибок (бинарная):")
+        print(f"True Negative (TN): {tn}")
+        print(f"False Positive (FP): {fp}")
+        print(f"False Negative (FN): {fn}")
+        print(f"True Positive (TP): {tp}")
+        
+        # Specificity (True Negative Rate)
+        specificity = tn / (tn + fp) if (tn + fp) > 0 else 0
+        print(f"Specificity (TNR): {specificity:.4f}")
+        
+        # Negative Predictive Value
+        npv = tn / (tn + fn) if (tn + fn) > 0 else 0
+        print(f"Negative Predictive Value (NPV): {npv:.4f}")
+        # По классам
+        unique_classes = np.unique(all_targets)
+        for class_id in unique_classes:
+            class_mask = np.array(all_targets) == class_id
+            class_accuracy = (np.array(all_predictions)[class_mask] == class_id).mean()
+            print(f"Class {class_id} Accuracy: {class_accuracy:.4f}")
+            
+        # Детальная статистика по ошибкам
+        print("\nДетальная статистика по ошибкам:")
+        print("=" * 50)
+
+        # Получаем отсортированные уникальные классы
+        unique_classes_sorted = sorted(unique_classes)
+        class_to_index = {cls: idx for idx, cls in enumerate(unique_classes_sorted)}
+
+        # Создаем красивую таблицу с статистикой ошибок
+        error_stats = []
+        for true_class in unique_classes_sorted:
+            true_idx = class_to_index[true_class]
+            for pred_class in unique_classes_sorted:
                 pred_idx = class_to_index[pred_class]
-                wrong_count = cm[class_idx, pred_idx]
-                if wrong_count > 0:
-                    wrong_distribution.append(f"{pred_class}({wrong_count})")
-        
-        if wrong_distribution:
-            print(f"  Ошибочные предсказания: {', '.join(wrong_distribution)}")
-        print()
+                count = cm[true_idx, pred_idx]
+                if true_class != pred_class:  # Только ошибочные предсказания
+                    error_stats.append({
+                        'Истинный класс': true_class,
+                        'Предсказанный класс': pred_class,
+                        'Количество ошибок': count,
+                        'Доля от всех ошибок': f"{(count / cm.sum() * 100):.2f}%",
+                        'Доля от класса': f"{(count / cm[true_idx].sum() * 100):.2f}%"
+                    })
 
-    # Общая статистика
-    total_samples = len(all_targets)
-    total_errors = total_samples - np.trace(cm)
-    overall_accuracy = np.trace(cm) / total_samples
+        # Сортируем по количеству ошибок (от больших к меньшим)
+        error_stats.sort(key=lambda x: x['Количество ошибок'], reverse=True)
 
-    print("ОБЩАЯ СТАТИСТИКА:")
-    print(f"Всего образцов: {total_samples}")
-    print(f"Общая точность: {overall_accuracy:.2%}")
-    print(f"Всего ошибок: {total_errors} ({(total_errors/total_samples):.2%})")
+        # Выводим таблицу
+        if error_stats:
+            print("Топ ошибок (по количеству):")
+            print("-" * 80)
+            for i, stat in enumerate(error_stats[:10]):  # Показываем топ-10 ошибок
+                print(f"{i+1:2d}. True:{stat['Истинный класс']} -> Pred:{stat['Предсказанный класс']}: "
+                    f"{stat['Количество ошибок']:3d} ошибок "
+                    f"({stat['Доля от всех ошибок']} от всех, "
+                    f"{stat['Доля от класса']} от класса {stat['Истинный класс']})")
+        else:
+            print("Ошибок не обнаружено!")
 
-    # Самые частые типы ошибок
-    if error_stats:
-        most_common_error = error_stats[0]
-        print(f"Самая частая ошибка: класс {most_common_error['Истинный класс']} -> "
-            f"класс {most_common_error['Предсказанный класс']} "
-            f"({most_common_error['Количество ошибок']} раз, "
-            f"{most_common_error['Доля от всех ошибок']} от всех ошибок)")
-    # Визуализация распределения классов (ДОБАВИТЬ)
-    plt.figure(figsize=(10, 6))
-    plt.hist(all_targets, bins=len(unique_classes), alpha=0.7, label='True')
-    plt.hist(all_predictions, bins=len(unique_classes), alpha=0.7, label='Predicted')
-    plt.xlabel('Class ID')
-    plt.ylabel('Count')
-    plt.title('Class Distribution - True vs Predicted')
-    plt.legend()
-    plt.savefig(results_dir_path / 'class_distribution.png')
-    plt.close()
+        # Статистика по классам
+        print("\nСтатистика по классам:")
+        print("-" * 40)
+        for class_id in unique_classes_sorted:
+            class_idx = class_to_index[class_id]
+            total_samples = cm[class_idx].sum()
+            correct_predictions = cm[class_idx, class_idx]
+            wrong_predictions = total_samples - correct_predictions
+            accuracy = correct_predictions / total_samples if total_samples > 0 else 0
+            
+            print(f"Класс {class_id}:")
+            print(f"  Всего образцов: {total_samples}")
+            print(f"  Правильно: {correct_predictions} ({accuracy:.2%})")
+            print(f"  Ошибок: {wrong_predictions} ({(wrong_predictions/total_samples):.2%})")
+            
+            # Показываем, в какие классы ошибалась модель для этого класса
+            wrong_distribution = []
+            for pred_class in unique_classes_sorted:
+                if pred_class != class_id:
+                    pred_idx = class_to_index[pred_class]
+                    wrong_count = cm[class_idx, pred_idx]
+                    if wrong_count > 0:
+                        wrong_distribution.append(f"{pred_class}({wrong_count})")
+            
+            if wrong_distribution:
+                print(f"  Ошибочные предсказания: {', '.join(wrong_distribution)}")
+            print()
+
+        # Общая статистика
+        total_samples = len(all_targets)
+        total_errors = total_samples - np.trace(cm)
+        overall_accuracy = np.trace(cm) / total_samples
+
+        print("ОБЩАЯ СТАТИСТИКА:")
+        print(f"Всего образцов: {total_samples}")
+        print(f"Общая точность: {overall_accuracy:.2%}")
+        print(f"Всего ошибок: {total_errors} ({(total_errors/total_samples):.2%})")
+
+        # Самые частые типы ошибок
+        if error_stats:
+            most_common_error = error_stats[0]
+            print(f"Самая частая ошибка: класс {most_common_error['Истинный класс']} -> "
+                f"класс {most_common_error['Предсказанный класс']} "
+                f"({most_common_error['Количество ошибок']} раз, "
+                f"{most_common_error['Доля от всех ошибок']} от всех ошибок)")
+        # Визуализация распределения классов (ДОБАВИТЬ)
+        plt.figure(figsize=(10, 6))
+        plt.hist(all_targets, bins=len(unique_classes), alpha=0.7, label='True')
+        plt.hist(all_predictions, bins=len(unique_classes), alpha=0.7, label='Predicted')
+        plt.xlabel('Class ID')
+        plt.ylabel('Count')
+        plt.title('Class Distribution - True vs Predicted')
+        plt.legend()
+        plt.savefig(results_dir_path / 'class_distribution.png')
+        plt.close()
+    
+    if cfg['dataset']['name'] == 'Termo_model_fwd_and_bwd':
+        test(exp_dir_path, Path(os.path.join(results_dir_path, "fwd")), cfg, dataset[0], scalers[0], test_loader, ideal_dataset[0], i=0)
+        test(exp_dir_path, Path(os.path.join(results_dir_path, "bwd")), cfg, dataset[1], scalers[1], test_loader, ideal_dataset[1], i=1)
+    else:
+        test(exp_dir_path, results_dir_path, cfg, dataset, scalers, test_loader, ideal_dataset, i =None)
