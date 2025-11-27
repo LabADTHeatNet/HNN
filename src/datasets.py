@@ -8,13 +8,13 @@ from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 
 import torch
-from torch.utils.data import random_split
+from torch.utils.data import random_split, Subset
 from torch_geometric.data import Data, Dataset, InMemoryDataset, Batch
 from torch_geometric.loader import DataLoader
 from torch_geometric.utils import to_undirected
 from sklearn.preprocessing import LabelEncoder
 import tqdm
-
+from sklearn.model_selection import train_test_split
 from src.utils import get_str_timestamp
 
 class PairedGraphDataset(Dataset):
@@ -56,7 +56,7 @@ def find_file_pairs(root_dir, ideal=False):
         if edges_path.exists():
             file_pairs.append([str(nodes_path), str(edges_path)])
 
-    return file_pairs
+    return sorted(file_pairs)
 
 def get_global_parameters(file_pairs):
     global_dataframes = []
@@ -378,7 +378,8 @@ def process_dataframes(nodes_df, edges_df, global_df,
     q_out_node = global_df.loc[global_df['id'] == 4, 'Q'].values[0]  # Расход на узле с id == 4
     t_out_node = global_df.loc[global_df['id'] == 4, 'Temp'].values[0]  # Температура на узле с id == 4
     t_in_node = global_df.loc[global_df['id'] == 186, 'Temp'].values[0]  # Температура на узле с id == 186
-    global_attrs = torch.tensor([t_outside, q_out_node, t_out_node, t_in_node], dtype=torch.float).unsqueeze(0)  # [1, global_dim]
+    graph_type = global_df.loc[global_df['id'] == 4, 'channel'].values[0]
+    global_attrs = torch.tensor([t_outside, q_out_node, t_out_node, t_in_node, graph_type], dtype=torch.float).unsqueeze(0)  # [1, global_dim]
     # global_attrs = torch.tensor([t_outside], dtype=torch.float).unsqueeze(0)  # [1, global_dim]
     
     # Извлечение признаков узлов
@@ -487,8 +488,12 @@ def create_dataset(root_dir, node_attr, edge_attr, edge_label, num_samples=None,
                     ideal_edges_df[f'{k}_ideal'] = ideal_edges_df[k]
 
     print("Обучение скейлеров...")
+    # if add_ideal:
+    #     scalers = fit_global_scalers(nodes_dataframes + ideal_nodes_dataframes, edges_dataframes + ideal_edges_dataframes, global_dataframes + ideal_global_dataframes,
+    #                                 node_attr, edge_attr, global_attr, edge_label, scaler_fn=scaler_fn)
+    # else:
     scalers = fit_global_scalers(nodes_dataframes, edges_dataframes, global_dataframes,
-                                 node_attr, edge_attr, global_attr, edge_label, scaler_fn=scaler_fn)
+                            node_attr, edge_attr, global_attr, edge_label, scaler_fn=scaler_fn)
 
     if add_ideal:
         print("[IDEAL] Нормализация таблиц...")
@@ -529,14 +534,32 @@ def create_dataset(root_dir, node_attr, edge_attr, edge_label, num_samples=None,
 
 def split_dataset(dataset, train_ratio, val_ratio, seed=42):
     """Разделение датасета на обучающую, валидационную и тестовую выборки."""
-    total_len = len(dataset)
-    train_len = int(train_ratio * total_len)
-    val_len = int(val_ratio * total_len)
-    test_len = total_len - train_len - val_len  # Оставшиеся данные для теста
-
-    # Фиксация случайности
-    torch.manual_seed(seed)
-    return random_split(dataset, [train_len, val_len, test_len])
+    labels = [dataset[i][0].edge_label.item() for i in range(len(dataset))]
+    labels = np.array(labels)
+    indices = np.arange(len(dataset))
+    
+    # Первое разделение: train и temp (val + test)
+    train_idx, temp_idx = train_test_split(
+        indices, 
+        test_size=1 - train_ratio, 
+        random_state=seed, 
+        stratify=labels
+    )
+    
+    temp_labels = labels[temp_idx]
+    
+    val_ratio_adj = val_ratio / (val_ratio + (1 - train_ratio - val_ratio))
+    val_idx, test_idx = train_test_split(
+        temp_idx,
+        test_size=val_ratio_adj,
+        random_state=seed,
+        stratify=temp_labels
+    )
+    
+    train_dataset = Subset(dataset, train_idx)
+    val_dataset = Subset(dataset, val_idx)
+    test_dataset = Subset(dataset, test_idx)
+    return train_dataset, val_dataset, test_dataset
 
 def create_dataloaders_both(train_dataset, val_dataset, test_dataset, batch_size=16):
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn= paired_collate)
@@ -556,16 +579,37 @@ def prepare_data(dataset_config, dataloader_config, seed=42, prepare_dataloaders
     Параметр prepare_dataloaders управляет разделением и созданием DataLoader'ов."""
     # Загрузка или создание датасета
     if dataset_config['load'] and Path(dataset_config['fp']).exists():
-        try:
-            dataset_dict = torch.load(dataset_config['fp'])
-        except FileNotFoundError:
-            raise FileNotFoundError(f"Файл датасета не найден: {dataset_config['fp']}")
-        except Exception as e:
-            raise RuntimeError(f"Ошибка загрузки датасета из {dataset_config['fp']}: {e}")
-        dataset = dataset_dict.get('dataset', [])
-        scalers = dataset_dict.get('scalers', [])
-        ideal_dataset = dataset_dict.get('ideal_dataset', [])
-        print(f"Датасет загружен из файла: {dataset_config['fp']}")
+        if dataset_config['name'] != 'Termo_model_fwd_and_bwd':
+            try:
+                dataset_dict = torch.load(dataset_config['fp'])
+            except FileNotFoundError:
+                raise FileNotFoundError(f"Файл датасета не найден: {dataset_config['fp']}")
+            except Exception as e:
+                raise RuntimeError(f"Ошибка загрузки датасета из {dataset_config['fp']}: {e}")
+            dataset = dataset_dict.get('dataset', [])
+            scalers = dataset_dict.get('scalers', [])
+            ideal_dataset = dataset_dict.get('ideal_dataset', [])
+            print(f"Датасет загружен из файла: {dataset_config['fp']}")
+        else:
+            try:
+                dataset_dict = torch.load(dataset_config['fp'])
+            except FileNotFoundError:
+                raise FileNotFoundError(f"Файл датасета не найден: {dataset_config['fp']}")
+            except Exception as e:
+                raise RuntimeError(f"Ошибка загрузки датасета из {dataset_config['fp']}: {e}")
+            fwd_dict = dataset_dict.get('fwd', {})
+            bwd_dict = dataset_dict.get('bwd', {})
+            dataset_fwd = fwd_dict.get('dataset', [])
+            scalers_fwd = fwd_dict.get('scalers', [])
+            ideal_dataset_fwd = fwd_dict.get('ideal_dataset', [])
+            dataset_bwd = bwd_dict.get('dataset', [])
+            scalers_bwd = bwd_dict.get('scalers', [])
+            ideal_dataset_bwd = bwd_dict.get('ideal_dataset', [])
+            dataset = PairedGraphDataset(dataset_fwd, dataset_bwd)
+            
+            scalers, ideal_dataset = [scalers_fwd, scalers_bwd], [ideal_dataset_fwd, ideal_dataset_bwd]
+            
+            print(f"Датасет загружен из файла: {dataset_config['fp']}")
     else:
         print("Создание датасета...")
         if dataset_config['name'] != 'Termo_model_fwd_and_bwd':
@@ -580,6 +624,8 @@ def prepare_data(dataset_config, dataloader_config, seed=42, prepare_dataloaders
                 scaler_fn=dataset_config.get('scaler_fn'),
                 add_ideal=dataset_config.get('add_ideal', False)
             )
+            torch.save({'dataset': dataset, 'scalers': scalers, 'ideal_dataset': ideal_dataset}, dataset_config['fp'])
+            print(f"Датасет сохранен в файл: {dataset_config['fp']}")
         if dataset_config['name'] == 'Termo_model_fwd_and_bwd':
             dataset_path = osp.join(dataset_config['datasets_dir'], 'Termo_model_fwd')
             dataset_fwd, scalers_fwd, ideal_dataset_fwd = create_dataset(
@@ -603,10 +649,14 @@ def prepare_data(dataset_config, dataloader_config, seed=42, prepare_dataloaders
                 scaler_fn=dataset_config.get('scaler_fn'),
                 add_ideal=dataset_config.get('add_ideal', False)
             )
-            scalers, ideal_dataset = scalers_fwd, ideal_dataset_fwd # Заглушка
             dataset = PairedGraphDataset(dataset_fwd, dataset_bwd)
-        torch.save({'dataset': dataset, 'scalers': scalers, 'ideal_dataset': ideal_dataset}, dataset_config['fp'])
-        print(f"Датасет сохранен в файл: {dataset_config['fp']}")
+            fwd_dict = {'dataset': dataset_fwd, 'scalers': scalers_fwd, 'ideal_dataset': ideal_dataset_fwd}
+            bwd_dict = {'dataset': dataset_bwd, 'scalers': scalers_bwd, 'ideal_dataset': ideal_dataset_bwd}
+            
+            scalers, ideal_dataset = [scalers_fwd, scalers_bwd], [ideal_dataset_fwd, ideal_dataset_bwd]
+        
+            torch.save({'fwd' : fwd_dict, 'bwd' : bwd_dict}, dataset_config['fp'])
+            print(f"Датасет сохранен в файл: {dataset_config['fp']}")
 
     print(f"Готово! Количество графов: {len(dataset)}, идеальных графов: {len(ideal_dataset)}")
 

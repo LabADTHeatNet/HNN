@@ -42,7 +42,8 @@ def splitsave_dataframes(files_list):
         fwd_edges['id_out'] = fwd_encoder.transform(fwd_edges['id_out'])
         bwd_edges['id_in'] = bwd_encoder.transform(bwd_edges['id_in'])
         bwd_edges['id_out'] = bwd_encoder.transform(bwd_edges['id_out'])
-        
+        bwd_edges.loc[bwd_edges['Vid'] == 2, ['id_in', 'id_out']]  = bwd_edges.loc[bwd_edges['Vid'] == 2, ['id_out', 'id_in']].values
+        bwd_edges[['id_in', 'id_out']] = bwd_edges[['id_out', 'id_in']]  
         os.makedirs(os.path.dirname(fwd_path), exist_ok=True)
         os.makedirs(os.path.dirname(bwd_path), exist_ok=True)
         fwd_edges.to_csv(fwd_path, sep='\t')
@@ -55,12 +56,12 @@ def splitsave_dataframes(files_list):
         # Отдельное сохранение глобальных параметров
         global_nodes = nodes_df.loc[(nodes_df['id'] == 4) | (nodes_df['id'] == 186)]
         global_path = nodes_path.replace("nodes", "global")
-        
-        global_path_fwd = global_path.replace("Termo_model", "Termo_model_fwd").replace(".csv", "_fwd.csv")
-        global_path_bwd = global_path.replace("Termo_model", "Termo_model_bwd").replace(".csv", "_bwd.csv")
-        for global_path in global_path_fwd, global_path_bwd:
-            global_nodes.to_csv(global_path, index= False, sep= '\t')
-
+        for direction in 'fwd', 'bwd':
+            global_path_dir = global_path.replace("Termo_model",f"Termo_model_{direction}").replace(".csv", f"_{direction}.csv")
+            global_nodes_dir = global_nodes.copy()
+            global_nodes_dir['channel'] = 0 if direction == 'fwd' else 1
+            global_nodes_dir.to_csv(global_path_dir, index= False, sep= '\t')
+            
 if __name__ == "__main__":
     print("Разделение IDEAL данных...")
     splitsave_dataframes(find_file_pairs('./datasets/Termo_model', True))
