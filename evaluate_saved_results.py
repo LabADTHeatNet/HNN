@@ -89,8 +89,48 @@ def collect_samples(results_dir: Path) -> List[SampleResult]:
         raise RuntimeError(f"No csv pairs found under {results_dir}")
     return samples
 
+def create_distance_confusion_matrix(all_targets, all_predictions, sections_distances_df, max_distance=None):
+    """
+    Создает матрицу, где по вертикали - истинные классы, по горизонтали - расстояния,
+    а в ячейках - количество предсказаний на таком расстоянии от истинного дефекта.
+    
+    Parameters:
+    all_targets: список истинных классов
+    all_predictions: список предсказанных классов  
+    sections_distances_df: DataFrame с матрицей расстояний между секциями
+    max_distance: максимальное расстояние для отображения (если None - берется максимум из матрицы)
+    """
 
-def compute_metrics(samples: Sequence[SampleResult]) -> dict:
+    distance_matrix = sections_distances_df.values
+    
+
+    unique_classes = sorted(set(all_targets) | set(all_predictions))
+    no_defect = max(unique_classes)
+    unique_classes.remove(no_defect)
+    
+    if max_distance is None:
+        max_distance = int(np.nanmax(distance_matrix[distance_matrix != -1]))
+
+    distance_confusion = np.zeros((len(unique_classes), max_distance + 1), dtype=int)
+    
+    for true_class, pred_class in zip(all_targets, all_predictions):
+        if true_class == no_defect or pred_class == no_defect:
+            continue
+            
+
+        distance = int(distance_matrix[true_class, pred_class])
+        
+        if distance != -1 and distance <= max_distance:
+            class_idx = unique_classes.index(true_class)
+            distance_confusion[class_idx, distance] += 1
+    distance_confusion_norm = distance_confusion.astype(float)
+    row_sums = distance_confusion_norm.sum(axis=1)
+
+    row_sums[row_sums == 0] = 1
+    distance_confusion_norm = distance_confusion_norm / row_sums[:, np.newaxis]
+    return distance_confusion_norm, unique_classes, list(range(max_distance + 1))
+
+def compute_metrics(samples: Sequence[SampleResult], sections_distances_df : pd.DataFrame) -> dict:
     """Compute confusion matrix and derived metrics."""
     y_true = np.array([s.true_class for s in samples])
     y_pred = np.array([s.pred_class for s in samples])
@@ -185,6 +225,17 @@ def compute_metrics(samples: Sequence[SampleResult]) -> dict:
         .sort_values("count", ascending=False)
     )
 
+    distance_metrics = {}
+    if sections_distances_df is not None:
+        distance_confusion, distance_classes, distances = create_distance_confusion_matrix(
+            y_true, y_pred, sections_distances_df
+        )
+        distance_metrics = {
+            "distance_confusion_matrix": distance_confusion,
+            "distance_classes": distance_classes,
+            "distances": distances
+        }
+
     return {
         "labels": labels,
         "confusion_matrix": cm,
@@ -198,6 +249,7 @@ def compute_metrics(samples: Sequence[SampleResult]) -> dict:
         "per_class_accuracy": per_class_accuracy,
         "classification_report": report,
         "errors_table": errors_df,
+        "distance_metrics": distance_metrics if distance_metrics is not None else None,
     }
 
 
@@ -210,7 +262,7 @@ def save_metrics(metrics: dict, output_dir: Path) -> None:
     """Persist metrics to disk in a couple of convenient formats."""
     labels = metrics["labels"]
     cm = metrics["confusion_matrix"]
-
+    distance_metrics = metrics["distance_metrics"]
     summary = {
         "num_samples": int(cm.sum()),
         "num_classes": len(labels),
@@ -238,7 +290,11 @@ def save_metrics(metrics: dict, output_dir: Path) -> None:
         }
     )
     per_class_df.to_csv(output_dir / "per_class_metrics.csv", index=False)
-
+    if distance_metrics is not None:
+        _plot_distance_confusion_matrix(distance_metrics["distance_classes"],
+                                        distance_metrics["distances"],
+                                        distance_metrics["distance_confusion_matrix"], 
+                                        path = output_dir / "distance_confusion_matrix_from_results.png")
     _plot_confusion_matrix(labels, cm, output_dir / "confusion_matrix_from_results.png")
     _plot_class_distribution(
         metrics["support"],
@@ -315,6 +371,93 @@ def _find_label_position(
     candidate_box = (x0 - margin, y0 - margin, x1 + margin, y1 + margin)
     return int(x0), int(y0), candidate_box
 
+def _plot_distance_confusion_matrix(distance_classes: Sequence[int], distances: Sequence[int], 
+                                  distance_confusion: np.ndarray, path: Path) -> None:
+    """Draw a distance confusion matrix heatmap using Pillow."""
+    n_classes = len(distance_classes)
+    n_distances = len(distances)
+    if n_classes == 0 or n_distances == 0:
+        return
+
+    cell_width = 40
+    cell_height = 30
+    left_margin = 100
+    top_margin = 80
+    bottom_margin = 120
+    right_margin = 40
+    width = left_margin + n_distances * cell_width + right_margin
+    height = top_margin + n_classes * cell_height + bottom_margin
+    img = Image.new("RGB", (width, height), "white")
+    draw = ImageDraw.Draw(img)
+    font = ImageFont.load_default()
+
+    max_val = distance_confusion.max() if distance_confusion.size else 1
+    max_val = max(max_val, 1)
+
+    # Draw cells
+    for i in range(n_classes):
+        for j in range(n_distances):
+            val = distance_confusion[i, j]
+            intensity = int(255 - min(200, (val / max_val) * 200))
+            color = (intensity, intensity, 255)
+            x0 = left_margin + j * cell_width
+            y0 = top_margin + i * cell_height
+            x1 = x0 + cell_width
+            y1 = y0 + cell_height
+            draw.rectangle([x0, y0, x1, y1], fill=color, outline="gray")
+            if val:
+                text = "{:.2f}".format(float(val))
+                tw, th = _measure_text(draw, text, font)
+                draw.text(
+                    (x0 + (cell_width - tw) / 2, y0 + (cell_height - th) / 2),
+                    text,
+                    fill="black",
+                    font=font,
+                )
+
+    # Y-axis labels (true classes)
+    for idx, class_label in enumerate(distance_classes):
+        text = str(class_label)
+        tw, th = _measure_text(draw, text, font)
+        x = left_margin - tw - 10
+        y = top_margin + idx * cell_height + (cell_height - th) / 2
+        draw.text((x, y), text, fill="black", font=font)
+
+    # X-axis labels (distances)
+    for idx, distance in enumerate(distances):
+        text = str(distance)
+        tw, th = _measure_text(draw, text, font)
+        x = left_margin + idx * cell_width + (cell_width - tw) / 2
+        y = top_margin + n_classes * cell_height + 10
+        draw.text((x, y), text, fill="black", font=font)
+
+    # Title
+    title = "Distance Confusion Matrix"
+    tw, th = _measure_text(draw, title, font)
+    draw.text(((width - tw) / 2, 20), title, fill="black", font=font)
+
+    # Axis descriptions
+    draw.text(
+        (left_margin, height - bottom_margin + 60),
+        "Distance to true defect",
+        fill="black",
+        font=font,
+    )
+    draw.text(
+        (20, top_margin + (n_classes * cell_height) / 2),
+        "True class",
+        fill="black",
+        font=font,
+    )
+
+    # Legend for values
+    legend_x = width - 120
+    legend_y = height - bottom_margin + 30
+    legend_text = f"Max: {int(max_val)}"
+    tw, th = _measure_text(draw, legend_text, font)
+    draw.text((legend_x, legend_y), legend_text, fill="black", font=font)
+
+    img.save(path)
 
 def _plot_confusion_matrix(labels: Sequence[int], cm: np.ndarray, path: Path) -> None:
     """Draw a confusion matrix heatmap using Pillow."""
@@ -986,7 +1129,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--results-dir",
         type=Path,
-        default=Path("out_Termo_with_examples/only_ideal_data/results"),
+        default=Path("out_Termo_both/dumb/results/bwd"),
         help="Directory with saved csv outputs.",
     )
     parser.add_argument(
@@ -994,6 +1137,12 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=None,
         help="Directory to store metrics and plots. Defaults to <results-dir>/analysis_from_saved.",
+    )
+    parser.add_argument(
+        "--sections-distances-csv",
+        type=Path,
+        default="sections_distances.csv",
+        help="Path to sections_distances.csv file for distance-based analysis.",
     )
     parser.add_argument(
         "--num-graphs",
@@ -1017,7 +1166,10 @@ def main() -> None:
     _ensure_output_dir(output_dir)
 
     samples = collect_samples(results_dir)
-    metrics = compute_metrics(samples)
+    sections_distances_df = None
+    if args.sections_distances_csv and args.sections_distances_csv.exists():
+        sections_distances_df = pd.read_csv(args.sections_distances_csv, sep='\t')
+    metrics = compute_metrics(samples, sections_distances_df)
     save_metrics(metrics, output_dir)
 
     labels = metrics.get("labels", [])

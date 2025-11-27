@@ -102,7 +102,7 @@ class EdgeClassifierNetwork_Attr(nn.Module):
                  num_node_layers,
                  edge_hidden_channels,
                  num_edge_layers,
-                 num_sections = 73, # 44 or 73
+                 num_sections = 44, # 44 or 73
                  heads=4,
                  dropout=0.1,
                  out_dim=1,
