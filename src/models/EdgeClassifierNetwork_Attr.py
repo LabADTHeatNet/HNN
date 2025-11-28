@@ -102,10 +102,9 @@ class EdgeClassifierNetwork_Attr(nn.Module):
                  num_node_layers,
                  edge_hidden_channels,
                  num_edge_layers,
-                 num_sections = 44, # 44 or 73
+                 out_dim = 44, # 44 or 73
                  heads=4,
                  dropout=0.1,
-                 out_dim=1,
                  jump_mode='cat',
                  in_global_dim=0,
                  pooling_method='fused' # 'attention', 'mean', 'max', 'fused'
@@ -114,7 +113,7 @@ class EdgeClassifierNetwork_Attr(nn.Module):
         self.edge_in_channels = in_edge_dim
         self.in_global_dim = in_global_dim
         self.pooling_method = pooling_method
-        self.num_sections = num_sections
+        self.num_sections = out_dim
         # Кодировщик узлов (GAT + JK)
         self.jump_mode = jump_mode
         self.node_encoder = NodeEncoder(in_node_dim + in_global_dim, node_hidden_channels, num_node_layers, heads=1, jump_mode=self.jump_mode)
@@ -141,12 +140,6 @@ class EdgeClassifierNetwork_Attr(nn.Module):
             for _ in range(num_edge_layers)
         ])
 
-        # Финальный регрессионный MLP по рёбрам
-        self.mlp_out = nn.Sequential(
-            nn.Linear(edge_hidden_channels + edge_init_repr_dim, edge_hidden_channels),
-            nn.ReLU(),
-            nn.Linear(edge_hidden_channels, out_dim)
-        )
         
         # Глобальный пулинг и классификатор
         self.global_pooling = self._setup_pooling(edge_hidden_channels, edge_init_repr_dim, pooling_method)
@@ -158,7 +151,7 @@ class EdgeClassifierNetwork_Attr(nn.Module):
             nn.Linear(classifier_input_dim, edge_hidden_channels),
             nn.ReLU(),
             nn.Dropout(dropout),
-            nn.Linear(edge_hidden_channels, num_sections)
+            nn.Linear(edge_hidden_channels, out_dim)
         )
         
     def _setup_pooling(self, hidden_dim, edge_init_dim, method):

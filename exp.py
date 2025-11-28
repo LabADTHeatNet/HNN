@@ -73,7 +73,7 @@ def exp(cfg, project_name='HeatNet', run_clear_ml=False, log_dir=None):
     # Инициализация модели
     in_node_dim = dataset[0].x.shape[1]  # Размерность признаков узлов
     in_edge_dim = dataset[0].edge_attr.shape[1]  # Размерность признаков ребер
-    out_dim = dataset[0].edge_label.shape[-1]  # Размерность целевых меток
+    # out_dim = dataset[0].edge_label.shape[-1]  # Размерность целевых меток
 
     # Динамический импорт класса модели
     model_fn = getattr(
@@ -84,7 +84,7 @@ def exp(cfg, project_name='HeatNet', run_clear_ml=False, log_dir=None):
         return model_fn(
             in_node_dim=in_node_dim,
             in_edge_dim=in_edge_dim,
-            out_dim=out_dim,
+            # out_dim=out_dim,
             **cfg['model']['kwargs']
         )
     model = create_model()

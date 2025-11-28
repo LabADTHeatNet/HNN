@@ -112,13 +112,14 @@ if __name__ == '__main__':
     heads = 4
     dropout = 0.2
     jump_mode = 'cat'
+    out_dim= 44
     
     EdgeClassifierNetwork_Attr_model = dict(
         name='EdgeClassifierNetwork_Attr',
         kwargs=dict(
             # node_in_channels=node_in_channels,   # устанавливается в exp_cls, = размеру входным данных
             # edge_in_channels=edge_in_channels,   # устанавливается в exp_cls, = размеру входных данных
-            # out_channels=out_channels,           # устанавливается в exp_cls, = размеру выходных данных
+            out_dim=out_dim,           # устанавливается в exp_cls, = размеру выходных данных
             in_global_dim=in_global_dim,
             node_hidden_channels=node_hidden_channels,
             num_node_layers=num_node_layers,
@@ -126,7 +127,7 @@ if __name__ == '__main__':
             num_edge_layers=num_edge_layers,
             heads=heads,
             dropout=dropout,
-            jump_mode=jump_mode
+            jump_mode=jump_mode,
             )
     )
     model = EdgeClassifierNetwork_Attr_model
@@ -134,7 +135,7 @@ if __name__ == '__main__':
     # Параметры обучения
     init_lr = 1e-3
     final_lr = 1e-6
-    epochs_num = 3
+    epochs_num = 100
     defect_weight = 1.0    # базовый вес для классов с дефектами
     no_defect_weight = 0.5 # меньший вес для "нет дефекта"
     class_weights = [defect_weight for i in range(44)]

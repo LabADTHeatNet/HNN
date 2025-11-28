@@ -219,13 +219,13 @@ def load_dataframes(files_list, zero_data = True):
                     10, 19, 18, 32, 32, 32, 36, 36, 42, 39, 29, 17, 12, 33, 34, 22, 23,
                         7, 40, 28, 27, 26])
             if bwd_subgraph:
-                id_section = np.array([ 0,  0, 41, 24,  0, 13, 18, 18, 18, 30, 31, 10, 11, 11, 20, 21, 21,
-                        1,  1,  0,  0, 11,  9,  9, 10,  5,  3,  3,  3,  3,  3,  3,  3, 37,
-                        8,  9, 14, 25, 25, 25, 32, 19, 11,  6,  2, 15, 15, 16,  4, 15, 16,
-                    14, 25, 25, 35, 10, 19, 18, 32, 36, 36, 36, 36, 36, 38,  8,  9, 14,
-                    35, 36, 32, 32, 32, 18, 11,  6,  2,  4, 15, 16, 16, 14, 25, 35, 10,
-                    10, 19, 18, 32, 32, 32, 36, 36,  0, 42, 39, 29, 17, 12, 33, 34, 22,
-                    23,  7, 40, 28, 27, 26])
+                id_section = np.array([ 0, 41, 24,  0, 13, 18, 18, 18, 30, 31, 10, 11, 11, 20, 21, 21,  1,
+        1,  0,  0, 11,  9,  9, 10,  5,  3,  3,  3,  3,  3,  3,  3, 37,  8,
+        9, 14, 25, 25, 25, 32, 19, 11,  6,  2, 15, 15, 16,  4, 15, 16, 14,
+       25, 25, 35, 10, 19, 18, 32, 36, 36, 36, 36, 36, 38,  8,  9, 14, 35,
+       36, 32, 32, 32, 18, 11,  6,  2,  4, 15, 16, 16, 14, 25, 35, 10, 10,
+       19, 18, 32, 32, 32, 36, 36,  0, 42, 39, 29, 17, 12, 33, 34, 22, 23,
+        7, 40, 28, 27, 26])
             edges_df['id_section'] = id_section
         
         users = edges_df.loc[edges_df['Vid_usr'], ['id_in', 'id_out']]
@@ -375,10 +375,10 @@ def process_dataframes(nodes_df, edges_df, global_df,
     t_outside = get_t_outside(nodes_fp)  # Температура воздуха снаружи
     
 
-    q_out_node = global_df.loc[global_df['id'] == 4, 'Q'].values[0]  # Расход на узле с id == 4
-    t_out_node = global_df.loc[global_df['id'] == 4, 'Temp'].values[0]  # Температура на узле с id == 4
-    t_in_node = global_df.loc[global_df['id'] == 186, 'Temp'].values[0]  # Температура на узле с id == 186
-    graph_type = global_df.loc[global_df['id'] == 4, 'channel'].values[0]
+    q_out_node = global_df.loc[0, 'Q']  # Расход на первой котельной
+    t_out_node = global_df.loc[0, 'Temp']  # Температура на узле с id == 4
+    t_in_node = global_df.loc[1, 'Temp'] # Температура на узле с id == 186
+    graph_type = global_df.loc[0, 'channel']
     global_attrs = torch.tensor([t_outside, q_out_node, t_out_node, t_in_node, graph_type], dtype=torch.float).unsqueeze(0)  # [1, global_dim]
     # global_attrs = torch.tensor([t_outside], dtype=torch.float).unsqueeze(0)  # [1, global_dim]
     
@@ -534,32 +534,14 @@ def create_dataset(root_dir, node_attr, edge_attr, edge_label, num_samples=None,
 
 def split_dataset(dataset, train_ratio, val_ratio, seed=42):
     """Разделение датасета на обучающую, валидационную и тестовую выборки."""
-    labels = [dataset[i][0].edge_label.item() for i in range(len(dataset))]
-    labels = np.array(labels)
-    indices = np.arange(len(dataset))
-    
-    # Первое разделение: train и temp (val + test)
-    train_idx, temp_idx = train_test_split(
-        indices, 
-        test_size=1 - train_ratio, 
-        random_state=seed, 
-        stratify=labels
-    )
-    
-    temp_labels = labels[temp_idx]
-    
-    val_ratio_adj = val_ratio / (val_ratio + (1 - train_ratio - val_ratio))
-    val_idx, test_idx = train_test_split(
-        temp_idx,
-        test_size=val_ratio_adj,
-        random_state=seed,
-        stratify=temp_labels
-    )
-    
-    train_dataset = Subset(dataset, train_idx)
-    val_dataset = Subset(dataset, val_idx)
-    test_dataset = Subset(dataset, test_idx)
-    return train_dataset, val_dataset, test_dataset
+    total_len = len(dataset)
+    train_len = int(train_ratio * total_len)
+    val_len = int(val_ratio * total_len)
+    test_len = total_len - train_len - val_len  # Оставшиеся данные для теста
+
+    # Фиксация случайности
+    torch.manual_seed(seed)
+    return random_split(dataset, [train_len, val_len, test_len])
 
 def create_dataloaders_both(train_dataset, val_dataset, test_dataset, batch_size=16):
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn= paired_collate)
