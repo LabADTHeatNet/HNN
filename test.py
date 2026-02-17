@@ -46,7 +46,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # ]
 
 exp_dir_path_list = [
-    'out_Termo_both/both_datasets_improved_graphs',
+    'out_Termo_both/both_datasets_removed186',
 ]
 
 for exp_dir_path in exp_dir_path_list:
@@ -54,7 +54,7 @@ for exp_dir_path in exp_dir_path_list:
     # 1) Загрузка конфигурации
     with open(Path(exp_dir_path) / 'params.json', 'r') as f:
         cfg = json.load(f)
-    cfg['dataset']['fp'] = 'data_Termo_Heat_full.pt'
+    cfg['dataset']['fp'] = 'data_Termo_Heat.pt'
     test_exp(exp_dir_path, out_dir_path, cfg, num_samples_to_draw=0)
 # %%
 

@@ -243,7 +243,6 @@ def test_exp(exp_dir_path, results_dir_path, cfg, num_samples_to_draw=None):
         # 4) Инициализация модели
         in_node_dim = dataset[0].x.shape[1]
         in_edge_dim = dataset[0].edge_attr.shape[1]
-        out_dim = dataset[0].edge_label.shape[-1]
         model_module = importlib.import_module(f"src.models.{cfg['model']['name']}")
         ModelClass = getattr(model_module, cfg['model']['name'])
 
@@ -251,7 +250,6 @@ def test_exp(exp_dir_path, results_dir_path, cfg, num_samples_to_draw=None):
             return ModelClass(
                 in_node_dim=in_node_dim,
                 in_edge_dim=in_edge_dim,
-                out_dim=out_dim,
                 **cfg['model']['kwargs']
             )
 

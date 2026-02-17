@@ -28,45 +28,12 @@ if __name__ == '__main__':
     # Утилитарные параметры
     utils = dict(
         server_name=server_name,
-        out_dir='out_Termo_both',  # Выходная директория для всех результатов
+        out_dir='out_Termo_final',  # Выходная директория для всех результатов
         device=device,
         seed=42  # Фиксация случайности для воспроизводимости
     )
 
     node_attr = ['pos_x', 'pos_y', 'P', 'types']
-
-    # Набор конифгураций датасета  #TODO: переделать выбор
-    # # === default ===
-    # exp_mode = None
-    # fp = 'data.pt'
-    # edge_attr = ['dP']
-
-    # # === eaL ===
-    # exp_mode = 'eaL'
-    # fp = 'data_eaL.pt'
-    # edge_attr = ['l']
-
-    # # === eaLdPQ ===
-    # exp_mode = 'eaLdpQ'
-    # fp = 'data_eaLdPQ.pt'
-    # edge_attr = ['l', 'dP', 'Q']
-
-    # # === eaLdP ===
-    # exp_mode = 'eaLdp'
-    # fp = 'data_eaLdP.pt'
-    # edge_attr = ['l', 'dP']
-
-    # # === naQ ===
-    # exp_mode = 'naQ'
-    # fp = 'data_naQ.pt'
-    # node_attr = ['pos_x', 'pos_y', 'P', 'Q', 'types']
-    # edge_attr = ['dP']
-
-    # # === eadQ ===
-    # exp_mode = 'eadQ'
-    # fp = 'data_eadQ.pt'
-    # node_attr = ['pos_x', 'pos_y', 'P', 'types_def', 'types_usr', 'types_src']
-    # edge_attr = ['l', 'dP', 'dQ', 'Q_out', 'Q_in']
 
     # === Termo ===
     exp_mode = 'Termo'  # Режим эксперимента
@@ -79,7 +46,7 @@ if __name__ == '__main__':
     dataset = dict(
         datasets_dir=osp.join(root_dir, 'datasets'),  # Путь к данным
         name='Termo_model_fwd_and_bwd',  # Имя датасета\
-        load=False,  # Загружать предобработанный датасет из файла
+        load=True,  # Загружать предобработанный датасет из файла
         fp=fp,  # Файл предобработанного датасета
         node_attr=node_attr,  # Атрибуты узлов
         edge_attr=edge_attr,  # Атрибуты ребер
@@ -128,6 +95,7 @@ if __name__ == '__main__':
             heads=heads,
             dropout=dropout,
             jump_mode=jump_mode,
+            use_edge_attention=True,
             )
     )
     model = EdgeClassifierNetwork_Attr_model

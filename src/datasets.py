@@ -17,11 +17,14 @@ import tqdm
 from sklearn.model_selection import train_test_split
 from src.utils import get_str_timestamp
 
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
 class PairedGraphDataset(Dataset):
     def __init__(self, fwd, bwd):
-        self.fwd = fwd
-        self.bwd = bwd
-
+        # print(torch.cuda.memory_allocated())
+        self.fwd = [g.to(device) for g in fwd]
+        self.bwd = [g.to(device) for g in bwd]
+        # print(torch.cuda.memory_allocated())
     def __len__(self):
         return len(self.fwd)
 
@@ -471,7 +474,12 @@ def create_dataset(root_dir, node_attr, edge_attr, edge_label, num_samples=None,
                 for k in nodes_ideal_attrs:
                     nodes_df[f'{k}_ideal'] = ideal_nodes_df[k]
                     if k in node_attr:
-                        nodes_df[k] -= ideal_nodes_df[k]  # вычитание идеальных значений
+                        if k in ['P', 'Temp']:
+                            mask_k = nodes_df[k] != 0.
+                            assert len(mask_k[mask_k == True]) == 29
+                            nodes_df.loc[mask_k, k] =  nodes_df.loc[mask_k, k] - ideal_nodes_df.loc[mask_k, k]
+                        else:
+                            nodes_df[k] -= ideal_nodes_df[k]  # вычитание идеальных значений
                 for k in edges_ideal_attrs:
                     edges_df[f'{k}_ideal'] = ideal_edges_df[k]
                     if k in edge_attr or k in edge_label:
@@ -543,16 +551,10 @@ def split_dataset(dataset, train_ratio, val_ratio, seed=42):
     torch.manual_seed(seed)
     return random_split(dataset, [train_len, val_len, test_len])
 
-def create_dataloaders_both(train_dataset, val_dataset, test_dataset, batch_size=16):
+def create_dataloaders(train_dataset, val_dataset, test_dataset, batch_size=16):
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn= paired_collate)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn= paired_collate)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, collate_fn= paired_collate)
-    return train_loader, val_loader, test_loader
-def create_dataloaders(train_dataset, val_dataset, test_dataset, batch_size=16):
-    """Создание DataLoader для обучения, валидации и тестирования."""
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
     return train_loader, val_loader, test_loader
 
 
@@ -560,6 +562,8 @@ def prepare_data(dataset_config, dataloader_config, seed=42, prepare_dataloaders
     """Основная функция подготовки данных: загрузка или создание датасета.
     Параметр prepare_dataloaders управляет разделением и созданием DataLoader'ов."""
     # Загрузка или создание датасета
+    
+    
     if dataset_config['load'] and Path(dataset_config['fp']).exists():
         if dataset_config['name'] != 'Termo_model_fwd_and_bwd':
             try:
@@ -587,6 +591,7 @@ def prepare_data(dataset_config, dataloader_config, seed=42, prepare_dataloaders
             dataset_bwd = bwd_dict.get('dataset', [])
             scalers_bwd = bwd_dict.get('scalers', [])
             ideal_dataset_bwd = bwd_dict.get('ideal_dataset', [])
+            
             dataset = PairedGraphDataset(dataset_fwd, dataset_bwd)
             
             scalers, ideal_dataset = [scalers_fwd, scalers_bwd], [ideal_dataset_fwd, ideal_dataset_bwd]
@@ -632,6 +637,7 @@ def prepare_data(dataset_config, dataloader_config, seed=42, prepare_dataloaders
                 add_ideal=dataset_config.get('add_ideal', False)
             )
             dataset = PairedGraphDataset(dataset_fwd, dataset_bwd)
+
             fwd_dict = {'dataset': dataset_fwd, 'scalers': scalers_fwd, 'ideal_dataset': ideal_dataset_fwd}
             bwd_dict = {'dataset': dataset_bwd, 'scalers': scalers_bwd, 'ideal_dataset': ideal_dataset_bwd}
             
@@ -654,16 +660,13 @@ def prepare_data(dataset_config, dataloader_config, seed=42, prepare_dataloaders
         seed=seed
     )
     print(f"Train: {len(train_dataset)}, Val: {len(val_dataset)}, Test: {len(test_dataset)}")
+    
+    
+    
+    
 
     # Создание DataLoader'ов
-    # train_loader, val_loader, test_loader = create_dataloaders(
-    #     train_dataset,
-    #     val_dataset,
-    #     test_dataset,
-    #     batch_size=dataloader_config.get('batch_size', 1),
-    #     **dataloader_config.get('kwargs', {})
-    # )
-    train_loader, val_loader, test_loader = create_dataloaders_both(
+    train_loader, val_loader, test_loader = create_dataloaders(
         train_dataset,
         val_dataset,
         test_dataset,
@@ -701,66 +704,6 @@ def data_to_tables(in_data,
         edges_df = edges_df[0]
 
     return nodes_df, edges_df
-
-
-def refine(dataset, k=1):
-    '''
-    Че-то делает, возвращает новый датасет с приписанным таргетом к рёбрам,
-    ВАЖНО: столбец атрибута в вершине должен быть последним, костыль, работает для dataset_f.py
-    '''
-    class GraphDatasetFromList(InMemoryDataset):
-        def __init__(self, data_list):
-            super().__init__()
-            self.data, self.slices = self.collate(data_list)
-
-    # Функция для поиска всех вершин на расстоянии <= k от заданной вершины
-
-    def get_nodes_within_k_hop(edge_index, node, k):
-        visited = set()
-        queue = deque([(node, 0)])  # (vertex, current_distance)
-
-        while queue:
-            current_node, current_distance = queue.popleft()
-            if current_node in visited:
-                continue
-            visited.add(current_node)
-
-            if current_distance < k:
-                # Добавляем соседей текущей вершины (ГРАФ НАПРАВЛЕННЫЙ!!)
-                neighbors = torch.cat((edge_index[1, edge_index[0] == current_node], edge_index[0, edge_index[1] == current_node]))
-                for neighbor in neighbors:
-                    queue.append((neighbor.item(), current_distance + 1))
-
-        return visited
-
-    def get_new_data(data: Data, k=1):
-        '''
-        Преобразует полученный Data объект, приписывая столбец в тензор edge_target, являющийся суммой всех вершин-соседей рёбер на расстоянии не более k
-        '''
-        # Инициализируем edge_target
-        edge_target = torch.zeros(data.edge_index.size(1), dtype=torch.float)
-
-        # Для каждого ребра
-        for i in range(data.edge_index.size(1)):
-            src, dst = data.edge_index[:, i]  # Исходная и целевая вершины ребра
-
-            # Находим все вершины на расстоянии <= k от исходной и целевой вершин
-            src_nodes = get_nodes_within_k_hop(data.edge_index, src.item(), k)
-            dst_nodes = get_nodes_within_k_hop(data.edge_index, dst.item(), k)
-
-            # Объединяем вершины и убираем дубликаты
-            all_nodes = src_nodes.union(dst_nodes)
-
-            # Суммируем атрибуты этих вершин (если не сделать [:, -1], будут суммироваться ещё и координаты вершин, см. костыль)
-            edge_target[i] = data.x[list(all_nodes)][:, -1].sum()
-
-        # Добавляем edge_target в data
-        data.edge_target = torch.cat([data.edge_target, edge_target.unsqueeze(1)], 1)
-        return data
-    new_data_list = [get_new_data(data, k) for data in tqdm(dataset)]
-    # Интересно, что поле edge_target_cols делят все объекты типа Data (если они из одного Dataset?)
-    new_data_list[0].edge_target_cols.append(f'{k}_sum')
-    return GraphDatasetFromList(new_data_list)
 
 
 def detect_defects(all_data):
