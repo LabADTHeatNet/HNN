@@ -1129,7 +1129,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--results-dir",
         type=Path,
-        default=Path("out_Termo_both/dumb/results/bwd"),
+        default=Path("out_Termo_Ablation_heads/8_heads/results/fwd"),
         help="Directory with saved csv outputs.",
     )
     parser.add_argument(

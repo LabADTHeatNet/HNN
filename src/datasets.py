@@ -496,7 +496,7 @@ def create_dataset(root_dir, node_attr, edge_attr, edge_label, num_samples=None,
                     ideal_edges_df[f'{k}_ideal'] = ideal_edges_df[k]
 
     print("Обучение скейлеров...")
-    # if add_ideal:
+    # if add_ideal: # я не помню что здесь происходило
     #     scalers = fit_global_scalers(nodes_dataframes + ideal_nodes_dataframes, edges_dataframes + ideal_edges_dataframes, global_dataframes + ideal_global_dataframes,
     #                                 node_attr, edge_attr, global_attr, edge_label, scaler_fn=scaler_fn)
     # else:
@@ -578,7 +578,7 @@ def prepare_data(dataset_config, dataloader_config, seed=42, prepare_dataloaders
             print(f"Датасет загружен из файла: {dataset_config['fp']}")
         else:
             try:
-                dataset_dict = torch.load(dataset_config['fp'])
+                dataset_dict = torch.load(dataset_config['fp'], weights_only=False)
             except FileNotFoundError:
                 raise FileNotFoundError(f"Файл датасета не найден: {dataset_config['fp']}")
             except Exception as e:

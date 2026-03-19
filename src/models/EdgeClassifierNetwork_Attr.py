@@ -134,8 +134,9 @@ class EdgeClassifierNetwork_Attr(nn.Module):
                  dropout=0.1,
                  jump_mode='cat',
                  in_global_dim=0,
-                #  pooling_method='fused', # 'attention', 'mean', 'max', 'fused'
                  use_edge_attention=True,
+                 use_skip_connections=True, # для того чтобы завести после ablation
+                 pooling='attention' # для того чтобы завести после ablation
                  ):
         super().__init__()
         self.edge_in_channels = in_edge_dim
@@ -153,7 +154,6 @@ class EdgeClassifierNetwork_Attr(nn.Module):
             node_repr_dim = num_node_layers * node_hidden_channels   # Из-за JK (concat всех слоёв)
         edge_init_repr_dim = 2 * node_repr_dim + self.edge_in_channels + in_global_dim
 
-        # self.edge_init = nn.Linear(2 * node_repr_dim, edge_hidden_channels)
         self.edge_init = nn.Sequential(
             nn.Linear(edge_init_repr_dim, edge_hidden_channels),
             nn.ReLU(),
@@ -174,14 +174,7 @@ class EdgeClassifierNetwork_Attr(nn.Module):
         
         
         self.attention_weights = nn.Linear(edge_hidden_channels + edge_init_repr_dim, 1)
-        # Итеративные attention-обновления рёбер
-        # self.edge_attention_layers = nn.ModuleList([
-        #     EdgeAttentionLayerFast(edge_hidden_channels, heads=heads, dropout=dropout)
-        #     for _ in range(num_edge_layers)
-        # ])
 
-        
-        
         # Финальный классификатор
         classifier_input_dim = edge_hidden_channels + edge_init_repr_dim
         
@@ -192,14 +185,6 @@ class EdgeClassifierNetwork_Attr(nn.Module):
             nn.Linear(edge_hidden_channels, out_dim)
         )
         
-    # def _setup_pooling(self, hidden_dim, edge_init_dim, method):
-    #     """Настраивает метод глобального пулинга"""
-    #     if method == 'fused':
-    #         # Используем объединённые признаки как в оригинале
-    #         
-    #         return self._fused_pool
-    #     else:
-    #         raise ValueError(f"Unknown pooling method: {method}")
 
     def _fused_pool(self, edge_feat, edge_init_feat, edge_batch=None):
         """Пулинг с объединёнными признаками (как в оригинальной модели)"""
@@ -214,10 +199,10 @@ class EdgeClassifierNetwork_Attr(nn.Module):
         
         return global_repr
 
-
-    def forward(self, data):
-        x, edge_index, gp = data.x, data.edge_index, data.global_attrs
-
+    # def forward(self, data):
+    def forward(self, x, edge_index, data):
+        # x, edge_index, gp = data.x, data.edge_index, data.global_attrs
+        gp = data.global_attrs
         # --- 1. расширяем t_out до узлов -----
         if hasattr(data, 'batch'):               # батч графов
             gp_per_node = gp[data.batch]       # [N, global_dim]
@@ -244,15 +229,12 @@ class EdgeClassifierNetwork_Attr(nn.Module):
         edge_feat = self.edge_init(edge_init_feat)
 
         # Обновление признаков рёбер через attention
-        # for layer in self.edge_attention_layers:
-        #     edge_feat = layer(edge_feat, edge_index, num_nodes=node_features.size(0))
         for layer in self.edge_update_layers:
                 edge_feat = layer(edge_feat, edge_index, num_nodes=node_features.size(0))
 
         # # Финальное объединение и предсказание
         
-                # --- 4. Глобальный пулинг ---
-        
+        # --- 4. Глобальный пулинг ---
         global_repr  = self._fused_pool(edge_feat, edge_init_feat, edge_batch)
 
         # --- 5. Классификация ---
