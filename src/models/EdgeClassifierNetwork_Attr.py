@@ -5,6 +5,18 @@ import torch_geometric.nn as gnn
 from torch_scatter import scatter_softmax, scatter_sum
 
 
+# РАБОТАЕТ ТОЛЬКО С EXPLAINER!!!!!!!!
+# РАБОТАЕТ ТОЛЬКО С EXPLAINER!!!!!!!!
+# РАБОТАЕТ ТОЛЬКО С EXPLAINER!!!!!!!!
+# РАБОТАЕТ ТОЛЬКО С EXPLAINER!!!!!!!!
+# РАБОТАЕТ ТОЛЬКО С EXPLAINER!!!!!!!!
+# РАБОТАЕТ ТОЛЬКО С EXPLAINER!!!!!!!!
+# РАБОТАЕТ ТОЛЬКО С EXPLAINER!!!!!!!!
+# РАБОТАЕТ ТОЛЬКО С EXPLAINER!!!!!!!!
+# РАБОТАЕТ ТОЛЬКО С EXPLAINER!!!!!!!!
+# РАБОТАЕТ ТОЛЬКО С EXPLAINER!!!!!!!!
+
+
 ##############################################
 # 1. Node Encoder with JumpingKnowledge
 ##############################################
@@ -200,8 +212,10 @@ class EdgeClassifierNetwork_Attr(nn.Module):
         return global_repr
 
     # def forward(self, data):
-    def forward(self, x, edge_index, data):
+    def forward(self, x, edge_index, data): # РАБОТАЕТ ТОЛЬКО С EXPLAINER!!!!!!!!
         # x, edge_index, gp = data.x, data.edge_index, data.global_attrs
+        
+        
         gp = data.global_attrs
         # --- 1. расширяем t_out до узлов -----
         if hasattr(data, 'batch'):               # батч графов
