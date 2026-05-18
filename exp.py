@@ -39,6 +39,38 @@ def _log_metrics(metrics, suffix, writer, epoch):
         writer.add_scalar(f"{key}/{suffix}", value, epoch)
 
 
+def _create_criterion(cfg, device):
+    """Создаёт функцию потерь из конфигурации."""
+    if cfg['criterion']['name'] is None:
+        return None
+
+    from src.utils import (
+        weighted_mse_loss,
+        FocalRegressionLoss,
+        FocalLoss,
+        MulticlassFocalLoss,
+    )
+
+    if cfg['criterion']['name'] == 'FocalRegressionLoss':
+        criterion_fn = FocalRegressionLoss
+    elif cfg['criterion']['name'] == 'FocalLoss':
+        criterion_fn = FocalLoss
+    elif cfg['criterion']['name'] == 'MulticlassFocalLoss':
+        criterion_fn = MulticlassFocalLoss
+    elif cfg['criterion']['name'] == 'weighted_mse_loss':
+        criterion_fn = weighted_mse_loss
+    else:
+        criterion_fn = getattr(importlib.import_module('torch.nn'), cfg['criterion']['name'])
+
+    kwargs = dict(cfg['criterion']['kwargs'])
+    if 'pos_weight' in kwargs:
+        kwargs['pos_weight'] = torch.Tensor(kwargs['pos_weight']).to(device)
+    if 'weight' in kwargs:
+        kwargs['weight'] = torch.Tensor(kwargs['weight']).to(device)
+
+    return criterion_fn(**kwargs)
+
+
 def exp(cfg, project_name='HeatNet', run_clear_ml=False, log_dir=None):
     if run_clear_ml:
         from clearml import (
@@ -101,28 +133,7 @@ def exp(cfg, project_name='HeatNet', run_clear_ml=False, log_dir=None):
         scheduler = None
 
     # Функция потерь
-    if cfg['criterion']['name'] is not None:
-        if cfg['criterion']['name'] == 'FocalRegressionLoss':
-            criterion_fn = FocalRegressionLoss
-        if cfg['criterion']['name'] == 'FocalLoss':
-            criterion_fn = FocalLoss
-        if cfg['criterion']['name'] == 'MulticlassFocalLoss':
-            criterion_fn = MulticlassFocalLoss
-        elif cfg['criterion']['name'] == 'weighted_mse_loss':
-            criterion_fn = weighted_mse_loss
-        else:
-            criterion_fn = getattr(importlib.import_module('torch.nn'), cfg['criterion']['name'])
-        if 'pos_weight' in cfg['criterion']['kwargs']:
-            cfg['criterion']['kwargs']['pos_weight'] = torch.Tensor(
-                cfg['criterion']['kwargs']['pos_weight']
-            ).to(device)
-        if 'weight' in cfg['criterion']['kwargs']:
-            cfg['criterion']['kwargs']['weight'] = torch.Tensor(
-                cfg['criterion']['kwargs']['weight']
-            ).to(device)
-        criterion = criterion_fn(**cfg['criterion']['kwargs'])
-    else:
-        criterion = None
+    criterion = _create_criterion(cfg, device)
 
     # Проверка формы вывода модели
     with torch.no_grad():
@@ -256,28 +267,7 @@ def test_exp(exp_dir_path, results_dir_path, cfg, num_samples_to_draw=None):
         model = create_model().to(device)
 
         # 5) Функция потерь
-        if cfg['criterion']['name'] is not None:
-            if cfg['criterion']['name'] == 'FocalRegressionLoss':
-                criterion_fn = FocalRegressionLoss
-            if cfg['criterion']['name'] == 'FocalLoss':
-                criterion_fn = FocalLoss
-            if cfg['criterion']['name'] == 'MulticlassFocalLoss':
-                criterion_fn = MulticlassFocalLoss
-            elif cfg['criterion']['name'] == 'weighted_mse_loss':
-                criterion_fn = weighted_mse_loss
-            else:
-                criterion_fn = getattr(importlib.import_module('torch.nn'), cfg['criterion']['name'])
-            if 'pos_weight' in cfg['criterion']['kwargs']:
-                cfg['criterion']['kwargs']['pos_weight'] = torch.Tensor(
-                    cfg['criterion']['kwargs']['pos_weight']
-                ).to(device)
-            if 'weight' in cfg['criterion']['kwargs']:
-                cfg['criterion']['kwargs']['weight'] = torch.Tensor(
-                    cfg['criterion']['kwargs']['weight']
-                ).to(device)
-            criterion = criterion_fn(**cfg['criterion']['kwargs'])
-        else:
-            criterion = None
+        criterion = _create_criterion(cfg, device)
 
         # 6) Загрузка весов
         state = torch.load(exp_dir_path / 'best_model.pth', weights_only=True)
