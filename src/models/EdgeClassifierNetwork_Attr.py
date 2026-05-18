@@ -245,12 +245,7 @@ class EdgeClassifierNetwork_Attr(nn.Module):
         for layer in self.edge_attention_layers:
             edge_feat = layer(edge_feat, edge_index, num_nodes=node_features.size(0))
 
-        # # Финальное объединение и предсказание
-        # fused_edge_feat = torch.cat([edge_feat, edge_init_feat], dim=-1)
-        # fused_edge_feat = torch.cat([edge_feat, edge_init_feat, edge_feat - edge_init_feat], dim=-1)
-        # output = self.mlp_out(fused_edge_feat)
-        
-                # --- 4. Глобальный пулинг ---
+        # --- 4. Глобальный пулинг ---
         if self.pooling_method == 'fused':
             global_repr = self._fused_pool(edge_feat, edge_init_feat, edge_batch)
         else:
