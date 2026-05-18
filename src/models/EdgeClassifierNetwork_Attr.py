@@ -107,14 +107,11 @@ class EdgeClassifierNetwork_Attr(nn.Module):
                  dropout=0.1,
                  jump_mode='cat',
                  in_global_dim=0,
-                 pooling_method='fused' # 'attention', 'mean', 'max', 'fused'
                  ):
         super().__init__()
         self.edge_in_channels = in_edge_dim
         self.in_global_dim = in_global_dim
-        self.pooling_method = pooling_method
         self.num_sections = out_dim
-        # Кодировщик узлов (GAT + JK)
         self.jump_mode = jump_mode
         self.node_encoder = NodeEncoder(in_node_dim + in_global_dim, node_hidden_channels, num_node_layers, heads=1, jump_mode=self.jump_mode)
         node_repr_dim = num_node_layers * node_hidden_channels  # Из-за JK (concat всех слоёв)
@@ -135,17 +132,16 @@ class EdgeClassifierNetwork_Attr(nn.Module):
         )
 
         # Итеративные attention-обновления рёбер
-        self.edge_attention_layers = nn.ModuleList([
+        self.edge_layers = nn.ModuleList([
             EdgeAttentionLayerFast(edge_hidden_channels, heads=heads, dropout=dropout)
             for _ in range(num_edge_layers)
         ])
 
-        
-        # Глобальный пулинг и классификатор
-        self.global_pooling = self._setup_pooling(edge_hidden_channels, edge_init_repr_dim, pooling_method)
-        
+        # Внимание для fused-пулинга
+        self.attention_weights = nn.Linear(edge_hidden_channels + edge_init_repr_dim, 1)
+
         # Финальный классификатор
-        classifier_input_dim = edge_hidden_channels + (edge_init_repr_dim if pooling_method == 'fused' else 0)
+        classifier_input_dim = edge_hidden_channels + edge_init_repr_dim
         
         self.classifier = nn.Sequential(
             nn.Linear(classifier_input_dim, edge_hidden_channels),
@@ -153,63 +149,18 @@ class EdgeClassifierNetwork_Attr(nn.Module):
             nn.Dropout(dropout),
             nn.Linear(edge_hidden_channels, out_dim)
         )
-        
-    def _setup_pooling(self, hidden_dim, edge_init_dim, method):
-        """Настраивает метод глобального пулинга"""
-        if method == 'attention':
-            # Attention-based пулинг
-            self.attention_weights = nn.Linear(hidden_dim, 1)
-            return self._attention_pool
-        elif method == 'mean':
-            return self._mean_pool
-        elif method == 'max':
-            return self._max_pool
-        elif method == 'fused':
-            # Используем объединённые признаки как в оригинале
-            self.attention_weights = nn.Linear(hidden_dim + edge_init_dim, 1)
-            return self._fused_pool
-        else:
-            raise ValueError(f"Unknown pooling method: {method}")
-        
-    def _attention_pool(self, edge_feat, edge_batch=None):
-        """Attention-based глобальный пулинг"""
-        attention_scores = self.attention_weights(edge_feat)  # [E, 1]
-        attention_weights = F.softmax(attention_scores, dim=0)
-        
-        if edge_batch is not None:
-            # Для батча графов
-            global_repr = scatter_sum(edge_feat * attention_weights, edge_batch, dim=0)
-        else:
-            # Для одиночного графа
-            global_repr = torch.sum(edge_feat * attention_weights, dim=0, keepdim=True)
-        
-        return global_repr
-    
-    def _mean_pool(self, edge_feat, edge_batch=None):
-        """Mean пулинг"""
-        if edge_batch is not None:
-            return gnn.global_mean_pool(edge_feat, edge_batch)
-        else:
-            return torch.mean(edge_feat, dim=0, keepdim=True)
-
-    def _max_pool(self, edge_feat, edge_batch=None):
-        """Max пулинг"""
-        if edge_batch is not None:
-            return gnn.global_max_pool(edge_feat, edge_batch)
-        else:
-            return torch.max(edge_feat, dim=0, keepdim=True)[0]
 
     def _fused_pool(self, edge_feat, edge_init_feat, edge_batch=None):
-        """Пулинг с объединёнными признаками (как в оригинальной модели)"""
+        """Глобальный пулинг с объединёнными признаками и attention."""
         fused_edge_feat = torch.cat([edge_feat, edge_init_feat], dim=-1)
         attention_scores = self.attention_weights(fused_edge_feat)
         attention_weights = F.softmax(attention_scores, dim=0)
-        
+
         if edge_batch is not None:
             global_repr = scatter_sum(fused_edge_feat * attention_weights, edge_batch, dim=0)
         else:
             global_repr = torch.sum(fused_edge_feat * attention_weights, dim=0, keepdim=True)
-        
+
         return global_repr
 
 
@@ -242,14 +193,11 @@ class EdgeClassifierNetwork_Attr(nn.Module):
         edge_feat = self.edge_init(edge_init_feat)
 
         # Обновление признаков рёбер через attention
-        for layer in self.edge_attention_layers:
+        for layer in self.edge_layers:
             edge_feat = layer(edge_feat, edge_index, num_nodes=node_features.size(0))
 
         # --- 4. Глобальный пулинг ---
-        if self.pooling_method == 'fused':
-            global_repr = self._fused_pool(edge_feat, edge_init_feat, edge_batch)
-        else:
-            global_repr = self.global_pooling(edge_feat, edge_batch)
+        global_repr = self._fused_pool(edge_feat, edge_init_feat, edge_batch)
 
         # --- 5. Классификация ---
         logits = self.classifier(global_repr)
