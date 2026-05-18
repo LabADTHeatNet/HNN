@@ -28,7 +28,7 @@ if __name__ == '__main__':
     # Утилитарные параметры
     utils = dict(
         server_name=server_name,
-        out_dir='out_Termo_final',  # Выходная директория для всех результатов
+        out_dir='out_Termo_Ablation_heads',  # Выходная директория для всех результатов
         device=device,
         seed=42  # Фиксация случайности для воспроизводимости
     )
@@ -76,7 +76,7 @@ if __name__ == '__main__':
     num_node_layers = 8
     edge_hidden_channels = 128
     num_edge_layers = 8
-    heads = 4
+    heads = 16
     dropout = 0.2
     jump_mode = 'cat'
     out_dim= 44
