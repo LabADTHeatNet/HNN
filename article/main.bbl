@@ -51,6 +51,44 @@ Zhou, S.; O'Neill, Z.; O'Neill, C.
 \newblock
   {\url{https://doi.org/https://doi.org/10.1016/j.applthermaleng.2018.04.010}}.
 
+\bibitem[{Federal Agency on Technical Regulating and
+  Metrology}(2013)]{gost55596_2013}
+{Federal Agency on Technical Regulating and Metrology}.
+\newblock {GOST R 55596-2013}. District Heating Networks,  2013.
+\newblock Russian national standard.
+
+\bibitem[{Euro-Asian Council for Standardization, Metrology and
+  Certification}(2006)]{gost30732_2006}
+{Euro-Asian Council for Standardization, Metrology and Certification}.
+\newblock {GOST 30732-2006}. Steel Pipes and Fittings with Polyurethane Foam
+  Thermal Insulation and Polyethylene Casing,  2006.
+\newblock Interstate standard.
+
+\bibitem[{State Committee for Standards of the USSR}(1983)]{gost25101_1983}
+{State Committee for Standards of the USSR}.
+\newblock {GOST 25.101-83}. Strength Calculation and Testing in Machine
+  Building,  1983.
+\newblock State standard.
+
+\bibitem[{Gosstroy of Russia}(2003)]{snip4102_2003}
+{Gosstroy of Russia}.
+\newblock {SNiP 41-02-2003}. Heat Networks,  2003.
+\newblock Building code.
+
+\bibitem[{European Committee for Standardization}(2021)]{en13941_2021}
+{European Committee for Standardization}.
+\newblock {EN 13941-1:2019+A1:2021}. District Heating Pipes -- Design and
+  Installation of Thermal Insulated Bonded Single and Twin Pipe Systems for
+  Directly Buried Hot Water Networks -- Part 1: Design,  2021.
+\newblock European standard.
+
+\bibitem[{European Committee for Standardization}(2023)]{en253_2023}
+{European Committee for Standardization}.
+\newblock {EN 253:2019+A1:2023}. District Heating Pipes -- Bonded Single Pipe
+  Systems for Directly Buried Hot Water Networks -- Factory Made Pipe Assembly,
+   2023.
+\newblock European standard.
+
 \bibitem[Zheng et~al.(2021)Zheng, Hu, Wang, Zheng, Gao, Zhang, You, and
   Xu]{zheng2021leak}
 Zheng, X.; Hu, F.; Wang, Y.; Zheng, L.; Gao, X.; Zhang, H.; You, S.; Xu, B.
@@ -228,28 +266,30 @@ Hamilton, W.; Ying, Z.; Leskovec, J.
 \bibitem[Kipf and
   Welling(2017)]{kipf2017semisupervisedclassificationgraphconvolutional}
 Kipf, T.N.; Welling, M.
-\newblock Semi-Supervised Classification with Graph Convolutional Networks,
-  2017,  \href{http://arxiv.org/abs/1609.02907}{{\normalfont
-  [arXiv:cs.LG/1609.02907]}}.
+\newblock Semi-Supervised Classification with Graph Convolutional Networks.
+\newblock In Proceedings of the Proceedings of the 5th International Conference
+  on Learning Representations (ICLR),  2017.
 
-\bibitem[Veličković et~al.(2018)Veličković, Cucurull, Casanova, Romero,
+\bibitem[Veličković et~al.(2017)Veličković, Cucurull, Casanova, Romero,
   Liò, and Bengio]{veličković2018graphattentionnetworks}
 Veličković, P.; Cucurull, G.; Casanova, A.; Romero, A.; Liò, P.; Bengio, Y.
-\newblock Graph Attention Networks,  2018,
-  \href{http://arxiv.org/abs/1710.10903}{{\normalfont
-  [arXiv:stat.ML/1710.10903]}}.
+\newblock Graph Attention Networks.
+\newblock {\em 6th International Conference on Learning Representations} {\bf
+  2017}.
 
 \bibitem[Brody et~al.(2021)Brody, Alon, and Yahav]{brody2021attentive}
 Brody, S.; Alon, U.; Yahav, E.
 \newblock How attentive are graph attention networks?
 \newblock {\em arXiv preprint arXiv:2105.14491} {\bf 2021}.
 
-\bibitem[Xu et~al.(2018)Xu, Li, Tian, Sonobe, ichi Kawarabayashi, and
+\bibitem[Xu et~al.(2018)Xu, Li, Tian, Sonobe, Kawarabayashi, and
   Jegelka]{xu2018representationlearninggraphsjumping}
-Xu, K.; Li, C.; Tian, Y.; Sonobe, T.; ichi Kawarabayashi, K.; Jegelka, S.
-\newblock Representation Learning on Graphs with Jumping Knowledge Networks,
-  2018,  \href{http://arxiv.org/abs/1806.03536}{{\normalfont
-  [arXiv:cs.LG/1806.03536]}}.
+Xu, K.; Li, C.; Tian, Y.; Sonobe, T.; Kawarabayashi, K.i.; Jegelka, S.
+\newblock Representation Learning on Graphs with Jumping Knowledge Networks.
+\newblock In Proceedings of the Proceedings of the 35th International
+  Conference on Machine Learning; Dy, J.; Krause, A., Eds. PMLR,  10--15 Jul
+  2018, Vol.~80, {\em Proceedings of Machine Learning Research}, pp.
+  5453--5462.
 
 \bibitem[Vesterlund and Dahl(2015)]{vesterlund2015method}
 Vesterlund, M.; Dahl, J.
@@ -258,5 +298,11 @@ Vesterlund, M.; Dahl, J.
 \newblock {\em Energy Conversion and Management} {\bf 2015}, {\em
   89},~555--567.
 \newblock {\url{https://doi.org/10.1016/j.enconman.2014.10.002}}.
+
+\bibitem[Kingma and Ba(2015)]{kingma2015adam}
+Kingma, D.P.; Ba, J.
+\newblock Adam: A Method for Stochastic Optimization.
+\newblock In Proceedings of the ICLR (Poster); Bengio, Y.; LeCun, Y., Eds.,
+  2015.
 
 \end{thebibliography}

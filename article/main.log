@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023/Debian) (preloaded format=pdflatex 2026.5.21)  22 MAY 2026 14:09
+This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023/Debian) (preloaded format=pdflatex 2026.5.21)  22 MAY 2026 15:54
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -1211,29 +1211,29 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                \addtolength{\topmargin}{-6.18796pt}.
 
 [3]
-<Figures/k_0.png, id=164, 454.69875pt x 274.02374pt>
+<Figures/k_0.png, id=163, 454.69875pt x 274.02374pt>
 File: Figures/k_0.png Graphic file (type png)
 <use Figures/k_0.png>
-Package pdftex.def Info: Figures/k_0.png  used on input line 381.
+Package pdftex.def Info: Figures/k_0.png  used on input line 400.
 (pdftex.def)             Requested size: 113.81102pt x 68.5852pt.
-<Figures/k_1.png, id=166, 454.69875pt x 274.02374pt>
+<Figures/k_1.png, id=165, 454.69875pt x 274.02374pt>
 File: Figures/k_1.png Graphic file (type png)
 <use Figures/k_1.png>
-Package pdftex.def Info: Figures/k_1.png  used on input line 383.
+Package pdftex.def Info: Figures/k_1.png  used on input line 402.
 (pdftex.def)             Requested size: 113.81102pt x 68.5852pt.
-<Figures/k_2.png, id=167, 454.69875pt x 274.02374pt>
+<Figures/k_2.png, id=166, 454.69875pt x 274.02374pt>
 File: Figures/k_2.png Graphic file (type png)
 <use Figures/k_2.png>
-Package pdftex.def Info: Figures/k_2.png  used on input line 384.
+Package pdftex.def Info: Figures/k_2.png  used on input line 403.
 (pdftex.def)             Requested size: 113.81102pt x 68.5852pt.
 LaTeX Font Info:    Font shape `U/msa/m/n' will be
-(Font)              scaled to size 9.37807pt on input line 389.
+(Font)              scaled to size 9.37807pt on input line 408.
 LaTeX Font Info:    Font shape `U/msa/m/n' will be
-(Font)              scaled to size 7.29405pt on input line 389.
+(Font)              scaled to size 7.29405pt on input line 408.
 LaTeX Font Info:    Font shape `U/msb/m/n' will be
-(Font)              scaled to size 9.37807pt on input line 389.
+(Font)              scaled to size 9.37807pt on input line 408.
 LaTeX Font Info:    Font shape `U/msb/m/n' will be
-(Font)              scaled to size 7.29405pt on input line 389.
+(Font)              scaled to size 7.29405pt on input line 408.
 
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
@@ -1259,10 +1259,18 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                \addtolength{\topmargin}{-6.18796pt}.
 
 [6]
-<Figures/dhn_example_new.png, id=216, 758.835pt x 491.436pt>
+
+Package fancyhdr Warning: \headheight is too small (12.0pt): 
+(fancyhdr)                Make it at least 18.18796pt, for example:
+(fancyhdr)                \setlength{\headheight}{18.18796pt}.
+(fancyhdr)                You might also make \topmargin smaller to compensate:
+(fancyhdr)                \addtolength{\topmargin}{-6.18796pt}.
+
+[7]
+<Figures/dhn_example_new.png, id=228, 758.835pt x 491.436pt>
 File: Figures/dhn_example_new.png Graphic file (type png)
 <use Figures/dhn_example_new.png>
-Package pdftex.def Info: Figures/dhn_example_new.png  used on input line 630.
+Package pdftex.def Info: Figures/dhn_example_new.png  used on input line 664.
 (pdftex.def)             Requested size: 455.24408pt x 294.82637pt.
 
 
@@ -1272,21 +1280,13 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                You might also make \topmargin smaller to compensate:
 (fancyhdr)                \addtolength{\topmargin}{-6.18796pt}.
 
-[7]
-
-Package fancyhdr Warning: \headheight is too small (12.0pt): 
-(fancyhdr)                Make it at least 18.18796pt, for example:
-(fancyhdr)                \setlength{\headheight}{18.18796pt}.
-(fancyhdr)                You might also make \topmargin smaller to compensate:
-(fancyhdr)                \addtolength{\topmargin}{-6.18796pt}.
-
 [8 <./Figures/dhn_example_new.png>]
-<Figures/architecture_horizontal.png, id=235, 562.1pt x 318.18875pt>
+<Figures/architecture_horizontal.png, id=236, 562.1pt x 318.18875pt>
 File: Figures/architecture_horizontal.png Graphic file (type png)
 <use Figures/architecture_horizontal.png>
-Package pdftex.def Info: Figures/architecture_horizontal.png  used on input line 699.
+Package pdftex.def Info: Figures/architecture_horizontal.png  used on input line 733.
 (pdftex.def)             Requested size: 284.52756pt x 161.06032pt.
- (/usr/share/texlive/texmf-dist/tex/latex/base/t1cmtt.fd)
+
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
 (fancyhdr)                Make it at least 18.18796pt, for example:
@@ -1294,16 +1294,16 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                You might also make \topmargin smaller to compensate:
 (fancyhdr)                \addtolength{\topmargin}{-6.18796pt}.
 
-[9 <./Figures/architecture_horizontal.png>]
-<Figures/Loss_combined.png, id=250, 424.422pt x 280.2105pt>
+[9] (/usr/share/texlive/texmf-dist/tex/latex/base/t1cmtt.fd)
+<Figures/Loss_combined.png, id=254, 424.422pt x 280.2105pt>
 File: Figures/Loss_combined.png Graphic file (type png)
 <use Figures/Loss_combined.png>
-Package pdftex.def Info: Figures/Loss_combined.png  used on input line 751.
+Package pdftex.def Info: Figures/Loss_combined.png  used on input line 785.
 (pdftex.def)             Requested size: 189.28882pt x 124.97333pt.
-<Figures/Accuracy_combined.png, id=251, 424.422pt x 280.539pt>
+<Figures/Accuracy_combined.png, id=255, 424.422pt x 280.539pt>
 File: Figures/Accuracy_combined.png Graphic file (type png)
 <use Figures/Accuracy_combined.png>
-Package pdftex.def Info: Figures/Accuracy_combined.png  used on input line 753.
+Package pdftex.def Info: Figures/Accuracy_combined.png  used on input line 787.
 (pdftex.def)             Requested size: 189.28882pt x 125.11983pt.
 
 
@@ -1313,18 +1313,7 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                You might also make \topmargin smaller to compensate:
 (fancyhdr)                \addtolength{\topmargin}{-6.18796pt}.
 
-[10 <./Figures/Loss_combined.png> <./Figures/Accuracy_combined.png>]
-<Figures/fwd_result_distance_confusion_matrix_transposed.png, id=268, 639.261pt x 208.926pt>
-File: Figures/fwd_result_distance_confusion_matrix_transposed.png Graphic file (type png)
-<use Figures/fwd_result_distance_confusion_matrix_transposed.png>
-Package pdftex.def Info: Figures/fwd_result_distance_confusion_matrix_transposed.png  used on input line 832.
-(pdftex.def)             Requested size: 455.24408pt x 148.78479pt.
-<Figures/bwd_result_distance_confusion_matrix_transposed.png, id=269, 639.261pt x 208.926pt>
-File: Figures/bwd_result_distance_confusion_matrix_transposed.png Graphic file (type png)
-<use Figures/bwd_result_distance_confusion_matrix_transposed.png>
-Package pdftex.def Info: Figures/bwd_result_distance_confusion_matrix_transposed.png  used on input line 835.
-(pdftex.def)             Requested size: 455.24408pt x 148.78479pt.
-
+[10 <./Figures/architecture_horizontal.png>]
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
 (fancyhdr)                Make it at least 18.18796pt, for example:
@@ -1332,7 +1321,18 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                You might also make \topmargin smaller to compensate:
 (fancyhdr)                \addtolength{\topmargin}{-6.18796pt}.
 
-[11]
+[11 <./Figures/Loss_combined.png> <./Figures/Accuracy_combined.png>]
+<Figures/fwd_result_distance_confusion_matrix_transposed.png, id=280, 639.261pt x 208.926pt>
+File: Figures/fwd_result_distance_confusion_matrix_transposed.png Graphic file (type png)
+<use Figures/fwd_result_distance_confusion_matrix_transposed.png>
+Package pdftex.def Info: Figures/fwd_result_distance_confusion_matrix_transposed.png  used on input line 866.
+(pdftex.def)             Requested size: 455.24408pt x 148.78479pt.
+<Figures/bwd_result_distance_confusion_matrix_transposed.png, id=281, 639.261pt x 208.926pt>
+File: Figures/bwd_result_distance_confusion_matrix_transposed.png Graphic file (type png)
+<use Figures/bwd_result_distance_confusion_matrix_transposed.png>
+Package pdftex.def Info: Figures/bwd_result_distance_confusion_matrix_transposed.png  used on input line 869.
+(pdftex.def)             Requested size: 455.24408pt x 148.78479pt.
+
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
 (fancyhdr)                Make it at least 18.18796pt, for example:
@@ -1341,25 +1341,34 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                \addtolength{\topmargin}{-6.18796pt}.
 
 [12 <./Figures/fwd_result_distance_confusion_matrix_transposed.png> <./Figures/bwd_result_distance_confusion_matrix_transposed.png>]
-<Figures/fwd_result_metric_distance_scatter.png, id=287, 657.0pt x 294.6645pt>
+<Figures/fwd_result_metric_distance_scatter.png, id=294, 657.0pt x 294.6645pt>
 File: Figures/fwd_result_metric_distance_scatter.png Graphic file (type png)
 <use Figures/fwd_result_metric_distance_scatter.png>
-Package pdftex.def Info: Figures/fwd_result_metric_distance_scatter.png  used on input line 883.
+Package pdftex.def Info: Figures/fwd_result_metric_distance_scatter.png  used on input line 920.
 (pdftex.def)             Requested size: 455.24408pt x 204.18199pt.
-<Figures/bwd_result_metric_distance_scatter.png, id=288, 657.0pt x 294.6645pt>
+<Figures/bwd_result_metric_distance_scatter.png, id=295, 657.0pt x 294.6645pt>
 File: Figures/bwd_result_metric_distance_scatter.png Graphic file (type png)
 <use Figures/bwd_result_metric_distance_scatter.png>
-Package pdftex.def Info: Figures/bwd_result_metric_distance_scatter.png  used on input line 885.
+Package pdftex.def Info: Figures/bwd_result_metric_distance_scatter.png  used on input line 922.
 (pdftex.def)             Requested size: 455.24408pt x 204.18199pt.
-<Figures/fwd_result_class_distribution_split.png, id=289, 714.159pt x 338.6835pt>
+
+
+Package fancyhdr Warning: \headheight is too small (12.0pt): 
+(fancyhdr)                Make it at least 18.18796pt, for example:
+(fancyhdr)                \setlength{\headheight}{18.18796pt}.
+(fancyhdr)                You might also make \topmargin smaller to compensate:
+(fancyhdr)                \addtolength{\topmargin}{-6.18796pt}.
+
+[13]
+<Figures/fwd_result_class_distribution_split.png, id=303, 714.159pt x 338.6835pt>
 File: Figures/fwd_result_class_distribution_split.png Graphic file (type png)
 <use Figures/fwd_result_class_distribution_split.png>
-Package pdftex.def Info: Figures/fwd_result_class_distribution_split.png  used on input line 893.
+Package pdftex.def Info: Figures/fwd_result_class_distribution_split.png  used on input line 930.
 (pdftex.def)             Requested size: 441.01772pt x 209.1444pt.
-<Figures/fwd_result_confusion_matrix_normalized.png, id=290, 570.933pt x 500.634pt>
+<Figures/fwd_result_confusion_matrix_normalized.png, id=304, 570.933pt x 500.634pt>
 File: Figures/fwd_result_confusion_matrix_normalized.png Graphic file (type png)
 <use Figures/fwd_result_confusion_matrix_normalized.png>
-Package pdftex.def Info: Figures/fwd_result_confusion_matrix_normalized.png  used on input line 895.
+Package pdftex.def Info: Figures/fwd_result_confusion_matrix_normalized.png  used on input line 932.
 (pdftex.def)             Requested size: 441.01772pt x 386.72688pt.
 
 
@@ -1369,16 +1378,16 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                You might also make \topmargin smaller to compensate:
 (fancyhdr)                \addtolength{\topmargin}{-6.18796pt}.
 
-[13 <./Figures/fwd_result_metric_distance_scatter.png> <./Figures/bwd_result_metric_distance_scatter.png>]
-<Figures/bwd_result_class_distribution_split.png, id=302, 714.159pt x 338.6835pt>
+[14 <./Figures/fwd_result_metric_distance_scatter.png> <./Figures/bwd_result_metric_distance_scatter.png>]
+<Figures/bwd_result_class_distribution_split.png, id=314, 714.159pt x 338.6835pt>
 File: Figures/bwd_result_class_distribution_split.png Graphic file (type png)
 <use Figures/bwd_result_class_distribution_split.png>
-Package pdftex.def Info: Figures/bwd_result_class_distribution_split.png  used on input line 904.
+Package pdftex.def Info: Figures/bwd_result_class_distribution_split.png  used on input line 941.
 (pdftex.def)             Requested size: 441.01772pt x 209.1444pt.
-<Figures/bwd_result_confusion_matrix_normalized.png, id=303, 570.933pt x 500.634pt>
+<Figures/bwd_result_confusion_matrix_normalized.png, id=315, 570.933pt x 500.634pt>
 File: Figures/bwd_result_confusion_matrix_normalized.png Graphic file (type png)
 <use Figures/bwd_result_confusion_matrix_normalized.png>
-Package pdftex.def Info: Figures/bwd_result_confusion_matrix_normalized.png  used on input line 906.
+Package pdftex.def Info: Figures/bwd_result_confusion_matrix_normalized.png  used on input line 943.
 (pdftex.def)             Requested size: 441.01772pt x 386.72688pt.
 
 
@@ -1388,7 +1397,7 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                You might also make \topmargin smaller to compensate:
 (fancyhdr)                \addtolength{\topmargin}{-6.18796pt}.
 
-[14 <./Figures/fwd_result_class_distribution_split.png> <./Figures/fwd_result_confusion_matrix_normalized.png>]
+[15 <./Figures/fwd_result_class_distribution_split.png> <./Figures/fwd_result_confusion_matrix_normalized.png>]
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
 (fancyhdr)                Make it at least 18.18796pt, for example:
@@ -1396,13 +1405,13 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                You might also make \topmargin smaller to compensate:
 (fancyhdr)                \addtolength{\topmargin}{-6.18796pt}.
 
-[15 <./Figures/bwd_result_class_distribution_split.png> <./Figures/bwd_result_confusion_matrix_normalized.png>]
-Underfull \hbox (badness 10000) in alignment at lines 963--963
+[16 <./Figures/bwd_result_class_distribution_split.png> <./Figures/bwd_result_confusion_matrix_normalized.png>]
+Underfull \hbox (badness 10000) in alignment at lines 1012--1012
 [][][][][][][] 
  []
 
 
-Underfull \hbox (badness 10000) in alignment at lines 991--991
+Underfull \hbox (badness 10000) in alignment at lines 1040--1040
 [][][] 
  []
 
@@ -1413,15 +1422,7 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                You might also make \topmargin smaller to compensate:
 (fancyhdr)                \addtolength{\topmargin}{-6.18796pt}.
 
-[16]
-
-Package fancyhdr Warning: \headheight is too small (12.0pt): 
-(fancyhdr)                Make it at least 18.18796pt, for example:
-(fancyhdr)                \setlength{\headheight}{18.18796pt}.
-(fancyhdr)                You might also make \topmargin smaller to compensate:
-(fancyhdr)                \addtolength{\topmargin}{-6.18796pt}.
-
-[17] (./main.bbl
+[17]
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
 (fancyhdr)                Make it at least 18.18796pt, for example:
@@ -1437,12 +1438,7 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                You might also make \topmargin smaller to compensate:
 (fancyhdr)                \addtolength{\topmargin}{-6.18796pt}.
 
-[19]
-Underfull \hbox (badness 1881) in paragraph at lines 237--241
-[]\T1/ppl/m/n/9 (+20) Veli£kovi¢, P.; Cu-cu-rull, G.; Casanova, A.; Romero, A.; Liò, P.; Ben-gio, Y.  Graph At-ten-tion Net-works, 2018,
- []
-
-)
+[19] (./main.bbl
 
 Package fancyhdr Warning: \headheight is too small (12.0pt): 
 (fancyhdr)                Make it at least 18.18796pt, for example:
@@ -1450,7 +1446,23 @@ Package fancyhdr Warning: \headheight is too small (12.0pt):
 (fancyhdr)                You might also make \topmargin smaller to compensate:
 (fancyhdr)                \addtolength{\topmargin}{-6.18796pt}.
 
-[20] 
+[20]
+
+Package fancyhdr Warning: \headheight is too small (12.0pt): 
+(fancyhdr)                Make it at least 18.18796pt, for example:
+(fancyhdr)                \setlength{\headheight}{18.18796pt}.
+(fancyhdr)                You might also make \topmargin smaller to compensate:
+(fancyhdr)                \addtolength{\topmargin}{-6.18796pt}.
+
+[21])
+
+Package fancyhdr Warning: \headheight is too small (12.0pt): 
+(fancyhdr)                Make it at least 18.18796pt, for example:
+(fancyhdr)                \setlength{\headheight}{18.18796pt}.
+(fancyhdr)                You might also make \topmargin smaller to compensate:
+(fancyhdr)                \addtolength{\topmargin}{-6.18796pt}.
+
+[22] 
 enddocument/afterlastpage: lastpage setting LastPage.
 (./main.aux)
  ***********
@@ -1461,18 +1473,18 @@ Package rerunfilecheck Info: File `main.out' has not changed.
 (rerunfilecheck)             Checksum: 82CE1FC31CA0241D6C775DDC57379E6D;2258.
  ) 
 Here is how much of TeX's memory you used:
- 34603 strings out of 474222
- 646634 string characters out of 5748733
- 1958975 words of memory out of 5000000
- 55650 multiletter control sequences out of 15000+600000
- 637226 words of font info for 446 fonts, out of 8000000 for 9000
+ 34645 strings out of 474222
+ 647314 string characters out of 5748733
+ 1956975 words of memory out of 5000000
+ 55671 multiletter control sequences out of 15000+600000
+ 637858 words of font info for 454 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 123i,14n,124p,5441b,830s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 123i,14n,124p,5441b,854s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/mathpazo/fplmr.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/mathpazo/fplmri.pfb></usr/share/texmf/fonts/type1/public/cm-super/sfss0800.pfb></usr/share/texmf/fonts/type1/public/cm-super/sftt1000.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/palatino/uplb8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/palatino/uplr8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/palatino/uplri8a.pfb>
-Output written on main.pdf (20 pages, 1412431 bytes).
+Output written on main.pdf (22 pages, 1418651 bytes).
 PDF statistics:
- 450 PDF objects out of 1000 (max. 8388607)
- 369 compressed objects within 4 object streams
- 119 named destinations out of 1000 (max. 500000)
+ 470 PDF objects out of 1000 (max. 8388607)
+ 387 compressed objects within 4 object streams
+ 128 named destinations out of 1000 (max. 500000)
  106194 words of extra memory for PDF output out of 106986 (max. 10000000)
 

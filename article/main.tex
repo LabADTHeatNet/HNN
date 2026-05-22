@@ -124,7 +124,7 @@ $^{3}$ \quad Kutateladze Institute of Thermophysics SB RAS, Novosibirsk 630090, 
 %\conference{} % An extended version of a conference paper
 
 % Abstract (Do not insert blank lines, i.e. \\) 
-\abstract{District heating networks (DHNs) are critical infrastructure prone to physical failures such as leaks, which cause significant energy and financial losses. Traditional physics-based monitoring methods are computationally expensive and require the continual recalibration of complex mathematical models, while standard data-driven approaches often fail due to the scarcity of real-world sensor data. This study addresses these challenges by proposing a topology-aware graph neural network (GNN) architecture for fault localization. The methodology follows a two-stage process: first, a graph attention-based architecture is designed and optimized using a synthetic dataset to effectively capture multi-step neighborhood dependencies. Second, the model is adapted and evaluated on a physically simulated dataset of a real urban DHN, comprising 187 nodes and 42,570 operational states. The problem is formulated as a multi-class classification task across supply and return subnets. The results demonstrate high predictive performance, achieving an accuracy of 96\% on the supply subnet and 91\% on the return subnet. Analysis of prediction errors reveals a strong bias towards local topological mistakes, indicating the model's ability to capture the physical propagation of disturbances. These findings highlight the efficacy of GNNs in handling sparse data and exploiting network topology for robust DHN monitoring.
+\abstract{District heating networks (DHNs) are critical infrastructure prone to physical failures such as leakage-related faults, which cause significant energy and financial losses. Traditional physics-based monitoring methods are computationally expensive and require the continual recalibration of complex mathematical models, while standard data-driven approaches often fail due to the scarcity of real-world sensor data. This study addresses these challenges by proposing a topology-aware graph neural network (GNN) architecture for fault localization. The methodology follows a two-stage process: first, a graph attention-based architecture is designed and optimized using a synthetic dataset to effectively capture multi-step neighborhood dependencies. Second, the model is adapted and evaluated on a physically simulated dataset of a real urban DHN, comprising 187 nodes and 42,570 operational states. The problem is formulated as a multi-class classification task across supply and return subnets. The results demonstrate high predictive performance, achieving an accuracy of 96\% on the supply subnet and 91\% on the return subnet. Analysis of prediction errors reveals a strong bias towards local topological mistakes, indicating the model's ability to capture the physical propagation of disturbances. These findings highlight the efficacy of GNNs in handling sparse data and exploiting network topology for robust DHN monitoring.
 }
 
 % Keywords
@@ -208,6 +208,22 @@ and broader industrial history. Consequently, many established
 \textcolor{blue}{fault detection} methodologies and their practical
 applications have evolved primarily in these sectors, leaving district heating
 networks (DHNs) with less developed or adapted techniques \cite{ZHOU2018567}.
+
+\textcolor{blue}{From an engineering perspective, the probability and
+localization of DHN faults are also linked to load level, pipe-system design,
+material strength, insulation condition, operating regime, and weak points
+identified during pipe-static or fatigue assessment. These aspects are
+normally constrained by design and construction standards, including
+GOST R 55596-2013, GOST 30732-2006, GOST 25.101-83, SNiP 41-02-2003,
+EN 13941, and EN 253
+\cite{gost55596_2013,gost30732_2006,gost25101_1983,snip4102_2003,en13941_2021,en253_2023}.
+Some pre-insulated pipe systems also include leakage-detection wires that
+provide local alarm information when insulation becomes wet. The present study
+does not replace these engineering and monitoring practices; rather, it
+complements them by using sparse pressure/temperature measurements and network
+topology to rank likely fault locations when dense instrumentation or complete
+condition-history data are unavailable.}
+
 There are currently three main approaches to underground fault detection:
 physics-based methods \cite{zheng2021leak}, data-driven methods
 \cite{ntakolia2022machine}, and the analysis of infrared images captured by
@@ -306,7 +322,10 @@ disturbances.
 	detection and localization. These studies indicate that topology-aware models
 	can outperform topology-agnostic approaches because they exploit the
 	structural constraints that govern how anomalies propagate through
-	interconnected network components. Inspired by these findings, this paper
+	interconnected network components. However, most of this evidence comes from
+	water/gas networks or denser sensing settings, leaving a gap in
+	topology-aware DHN fault localization under sparse SCADA-like measurements and
+	limited labeled field data. Inspired by these findings, this paper
 	investigates the applicability of GNNs to DHNs, aiming to adapt these
 	topology-aware architectures to the specific challenges of heat distribution
 	monitoring.}
@@ -559,6 +578,10 @@ Arkhangelsk Oblast, Russia, was modeled. The case study represents a compact
 residential district served by a central heat source and includes consumer
 stations together with the interconnecting supply and return pipeline
 infrastructure. The resulting graph contains 187 nodes and 202 pipe segments.
+\textcolor{blue}{Thus, the modeled object is a local hot-water supply/return
+DHN segment rather than a complete city-wide heat-supply system; consumer
+stations are heat sinks, and the source/sink symbols in Figure~\ref{fig:dhn}
+denote the heat-source supply/return boundary nodes.}
 The heat source is represented by boundary conditions: specified supply flow
 rate and temperature, and fixed return pressure, while the boiler outlet
 pressure is obtained within the hydraulic solution.
@@ -570,6 +593,11 @@ were also scaled according to the same curve. The outdoor temperature was
 varied from $-34^{\circ}\mathrm{C}$ to $+10^{\circ}\mathrm{C}$ with
 $1^{\circ}\mathrm{C}$ increments to define baseline environmental scenarios.
 
+\textcolor{blue}{Therefore, the boundary conditions in the generated dataset
+are scenario-dependent values defined by this operating curve rather than a
+single fixed operating point; the ambient-temperature range specifies the load
+envelope covered by the simulations.}
+
 For each baseline scenario, a grid of operational states with various
 modifications of baseline scenario, was generated, resulting in a final dataset
 of 42570 samples. Natural data noise (environmental fluctuations and
@@ -579,9 +607,15 @@ subset of pipes. To emulate localized thermal degradation (e.g., insulation
 failure or pipe flooding), a set of defect scenarios in which $\alpha$ was
 increased in a single pipeline segment was generated. The defect location was
 swept over all pipeline segments in the network, excluding consumer-modeling
-pipes. Five defect severity levels were considered, corresponding to increased
-heat transfer in the ranges 120--150\%, 150--170\%, 170--200\%, 200--300\%,
-and 300--400\% of the baseline $\alpha$ value.
+pipes. Five defect severity levels were considered, corresponding to
+\textcolor{blue}{increased heat transfer in the ranges 120--150\%, 150--170\%,
+170--200\%, 200--300\%, and 300--400\% of the baseline $\alpha$ value.}
+
+\textcolor{blue}{Consumer-modeling pipes are auxiliary graph edges that
+connect the supply and return subnets through a consumer station and represent
+consumer-side hydraulic resistance and heat extraction. They are not treated as
+candidate distribution-pipeline fault classes in the present localization
+task.}
 
 \textcolor{blue}{In this formulation, a defect is not modeled as a mass leak:
 	no water-loss term is added to the nodal mass-balance equation and the branch
@@ -714,7 +748,7 @@ dataset was split into training, validation, and test sets with a ratio of
 	fault locations and operating states within the simulated operating envelope,
 	rather than extrapolation to completely unseen climate regimes.}
 
-The model was optimized using Adam. The initial learning rate was set to
+The model was optimized using Adam \cite{kingma2015adam}. The initial learning rate was set to
 $10^{-3}$, with $\beta = (0.9, 0.99)$, $\varepsilon = 10^{-8}$, and weight
 decay $\lambda = 10^{-6}$. The learning rate was reduced exponentially each
 epoch down to $10^{-6}$ using a StepLR scheduler with a step size of $1$ and
@@ -864,7 +898,10 @@ occurrences of errors beyond that distance (relative to the network diameter of
 correctly identifies the neighborhood of the fault even if it misassigns the
 specific pipe edge. From an operational standpoint, this suggests that even in
 cases of misclassification, the model effectively narrows the search area to
-the vicinity of the actual fault.
+the vicinity of the actual fault. \textcolor{blue}{In practical terms, this
+means that the initial inspection area can be limited to the predicted section
+and its one- to two-section topological neighbourhood, before using additional
+field diagnostics to identify the exact pipe edge.}
 
 \textcolor{blue}{To complement the hop-based analysis, we also evaluated the
 	metric localization error along the pipe network. For each prediction, the
@@ -913,7 +950,11 @@ the vicinity of the actual fault.
 Figures~\ref{fig:supply_distribution_confusion}
 and~\ref{fig:return_distribution_confusion} should be interpreted as marginal
 class-count diagnostics rather than as direct measures of class-wise
-localization accuracy. Similar true and predicted counts can still hide
+localization accuracy. In these panels, ``True'' denotes the number of test
+samples whose simulated defect is located in the corresponding section, while
+``Predicted Right'' and ``Predicted Wrong'' denote correct and incorrect
+predictions assigned to that section, respectively.
+Similar true and predicted counts can still hide
 compensating errors between neighbouring sections. Therefore, the distribution
 plots are considered together with the corresponding confusion matrices, which
 show the actual class-to-class error structure.}
@@ -927,7 +968,15 @@ being the most problematic case; this confirms that the model has difficulty
 separating weak fault signatures in the farthest part of the network. For the return subnet, the
 diffuse, scattered pattern of misclassifications across multiple classes
 confirms that the narrower dynamic range makes fault signatures less
-discriminative, and the noise begins to mask the underlying data patterns.}
+discriminative, and the noise begins to mask the underlying data patterns. In
+particular, return-subnet segment 0 is often confused with nearby segments 1,
+2, and 4. This segment is closest to the return-side sink and therefore lies
+among the most distant sections from the source along the return path. As the
+distance from the source increases, hydraulic and thermal responses become
+smoother and defect signatures affect the measured parameters less explicitly.
+Moreover, segment 0 contains several long pipes, so disturbances originating in
+adjacent sections can produce similar aggregate signatures and be assigned to
+segment 0.}
 
 \subsection{Ablation Studies}
 
@@ -1043,6 +1092,15 @@ on historical field data from operational networks and testing it across
 different district heating geometries and sensor layouts, while addressing the
 inevitable domain shift between simulated training regimes and real-world
 seasonal and load variations.
+
+\textcolor{blue}{In practical predictive-maintenance workflows, the proposed
+GNN can be used as an additional localization and ranking layer.
+Standard-based risk estimates, pipe age and material data, pipe-static or
+fatigue assessments, historical water-loss records, leakage-wire alarms, and
+operating-history data can define prior fault probabilities, while the GNN uses
+sparse SCADA-like pressure and temperature measurements together with network
+topology to narrow the inspection area.}
+
 However, we recognize that the most significant challenge remains the
 acquisition of high-quality, labeled data to support such data-driven
 methodologies.

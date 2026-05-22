@@ -1,15 +1,15 @@
 # Fdb version 4
-["bibtex main"] 1779433696.59715 "main.aux" "main.bbl" "main" 1779433773.54321 0
+["bibtex main"] 1779439843.75176 "main.aux" "main.bbl" "main" 1779440063.31258 0
   "./Definitions/mdpi.bst" 1779252904 23683 4afe8e0b352a18c39ff91c43fd26f4b2 ""
-  "./bibliography.bib" 1779431042.78729 17409 02a3c28b3419f9722776d03169eb3b57 ""
-  "main.aux" 1779433773.2533 15302 c5818d2630a2fd242678c2575064e03e "pdflatex"
+  "./bibliography.bib" 1779437839.14015 20982 ac844a25ab373ba51bec99fc06e2a80b ""
+  "main.aux" 1779440063.03406 15997 605cb2a5016d3e1aff6c7149f6b8039e "pdflatex"
   (generated)
   "main.bbl"
   "main.blg"
   (rewritten before read)
-["pdflatex"] 1779433770.43451 "/home/ivan/python/heatnet/article/main.tex" "main.pdf" "main" 1779433773.54336 0
+["pdflatex"] 1779440060.23877 "/home/ivan/python/heatnet/article/main.tex" "main.pdf" "main" 1779440063.31273 0
   "/etc/texmf/web2c/texmf.cnf" 1779351546.26058 475 c0e671620eb5563b2130f56340a5fde8 ""
-  "/home/ivan/python/heatnet/article/main.tex" 1779433687.86195 83100 dde33fb6097eb893fbaa4f703bdfdf91 ""
+  "/home/ivan/python/heatnet/article/main.tex" 1779439838.44887 86770 3bbe13c11328941a5566848be34a9cb7 ""
   "/usr/share/texlive/texmf-dist/fonts/enc/dvips/base/8r.enc" 1165713224 4850 80dc9bab7f31fb78a000ccfed0e27cab ""
   "/usr/share/texlive/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
   "/usr/share/texlive/texmf-dist/fonts/tfm/adobe/palatino/pplb7t.tfm" 1136768653 1616 371d1ee60c04b008c8fd760060cd34f1 ""
@@ -279,10 +279,10 @@
   "Figures/k_0.png" 1779252910 33641 bf02dbc908fb96df184b3d65968d07ee ""
   "Figures/k_1.png" 1779252910 38039 60cebb71e088b4a9f2514a25272265f9 ""
   "Figures/k_2.png" 1779252910 40211 c36356b6b3697bc0ff174b8d5c1bed80 ""
-  "main.aux" 1779433773.2533 15302 c5818d2630a2fd242678c2575064e03e "pdflatex"
-  "main.bbl" 1779433696.69758 12202 6b041dfa7abe9a8340717dc4bca331b0 "bibtex main"
-  "main.out" 1779433773.2543 2258 82ce1fc31ca0241d6c775ddc57379e6d "pdflatex"
-  "main.tex" 1779433687.86195 83100 dde33fb6097eb893fbaa4f703bdfdf91 ""
+  "main.aux" 1779440063.03406 15997 605cb2a5016d3e1aff6c7149f6b8039e "pdflatex"
+  "main.bbl" 1779439843.85338 14206 63259d1e4ee7ed50ea370d8c8a943f2e "bibtex main"
+  "main.out" 1779440063.03506 2258 82ce1fc31ca0241d6c775ddc57379e6d "pdflatex"
+  "main.tex" 1779439838.44887 86770 3bbe13c11328941a5566848be34a9cb7 ""
   (generated)
   "main.aux"
   "main.log"
