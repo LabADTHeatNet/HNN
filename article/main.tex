@@ -196,9 +196,9 @@ reliability of heat supply \cite{novitsky2022intellectualization,
 	tereshchenko2016importance, POSTNIKOV2020293}. These changes disrupt the
 network's operation and ultimately result in failures. Such incidents cause not
 only substantial heat loss but also significant financial damage. Consequently,
-the detection and localization of leaks in district heating pipelines is a key
-operational priority. This challenge, however, is not unique to district
-heating systems.
+\textcolor{blue}{the detection and localization of faults in district heating
+	pipelines is a key operational priority.} This challenge, however, is not
+unique to district heating systems.
 
 When examining fault detection, one observes a fundamentally similar class of
 diagnostic problems appearing across sectors such as gas \cite{LI2023124170},
@@ -292,22 +292,24 @@ disturbances.
 
 %[So, our main goal is ...]
 
-Studies on water \cite{wu2024feel, zhang2025algorithm, li2024convolutional,
-	csahin2023prediction, truong2024graph} and gas \cite{zhang2023towards}
-distribution systems have demonstrated that GNN-based methods achieve superior
-fault localization accuracy compared to topology-agnostic approaches, precisely
-because they exploit the structural constraints that dictate how anomalies
-propagate through interconnected network components. Specific results include
-leakage detection accuracy above 90\%, topology-aware pressure reconstruction
-with significantly lower error compared to previously used methods such as SVM
-(\c{S}ahin \& Y{\"u}ce, 2023), Truong et al. reported a $\approx 40\%$
-reduction in pressure estimation error using a GNN-based model. For gas network
-state estimation, Li \& Wu (2024) proposed a CGNN (Composite Graph Neural
-Network) architecture that fuses segment-level features, reporting accuracies
-of $90.28\%$ and $>85\%$ in dense and sparse monitoring zones, respectively.
-Inspired by these findings, this paper investigates the applicability of GNNs
-to DHNs, aiming to adapt these topology-aware architectures to the specific
-challenges of heat distribution monitoring.
+\textcolor{blue}{Recent studies on water and gas distribution systems show why
+	graph-based learning is relevant for infrastructure diagnostics. Wu et
+	al.~\cite{wu2024feel} used GNNs for leakage-risk assessment in water
+	distribution networks, while Zhang and Fink~\cite{zhang2025algorithm}
+	proposed an algorithm-informed GNN for leakage detection and localization.
+	Li and Wu~\cite{li2024convolutional} introduced a segment-feature fusion
+	strategy for water-network leakage detection, \c{S}ahin and
+	Y{\"u}ce~\cite{csahin2023prediction} reported leakage prediction results with
+	graph convolutional networks, and Truong et al.~\cite{truong2024graph}
+	demonstrated GNN-based pressure reconstruction. For gas networks, Zhang et
+	al.~\cite{zhang2023towards} investigated probabilistic GNNs for leak
+	detection and localization. These studies indicate that topology-aware models
+	can outperform topology-agnostic approaches because they exploit the
+	structural constraints that govern how anomalies propagate through
+	interconnected network components. Inspired by these findings, this paper
+	investigates the applicability of GNNs to DHNs, aiming to adapt these
+	topology-aware architectures to the specific challenges of heat distribution
+	monitoring.}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Materials and Methods}
@@ -577,8 +579,17 @@ subset of pipes. To emulate localized thermal degradation (e.g., insulation
 failure or pipe flooding), a set of defect scenarios in which $\alpha$ was
 increased in a single pipeline segment was generated. The defect location was
 swept over all pipeline segments in the network, excluding consumer-modeling
-pipes. Five defect severity levels were considered, corresponding to 120--400\%
-of the baseline $\alpha$ value.
+pipes. Five defect severity levels were considered, corresponding to increased
+heat transfer in the ranges 120--150\%, 150--170\%, 170--200\%, 200--300\%,
+and 300--400\% of the baseline $\alpha$ value.
+
+\textcolor{blue}{In this formulation, a defect is not modeled as a mass leak:
+	no water-loss term is added to the nodal mass-balance equation and the branch
+	mass-flow equations remain closed. The fault corresponds to a local increase
+	in heat transfer through the pipe wall/insulation. A true leakage case with
+	water loss would require an additional mass source/sink term in the continuity
+	equation and changed branch flows; this case is outside the scope of the
+	current dataset.}
 
 \textcolor{blue}{The dataset generation process produced the following samples for each temperature regime: 10 defect-free operational states and 935 defective states (5 simulations for each of the 187 pipes). Additionally, for each temperature, a reference sample without defects or noise was generated as a baseline. In total, the dataset contains 42,525 training samples (42,075 defective and 450 defect-free) plus 45 reference samples.}
 
@@ -599,9 +610,9 @@ dependencies to accurately trace the fault source.
 
 Having understood what a suitable GNN should look like, we moved on to fault
 localization in the DHN. \textcolor{blue}{To mimic realistic sparse monitoring,
-	dynamic pressure and temperature values are retained only at 30 nodes: the heat
-	source inlet/outlet, the heat sink, and the supply/return connection points of
-	the 14 consumers (2 nodes per consumer).} This configuration mirrors real-world
+	dynamic pressure and temperature values are retained only at 30 nodes: the
+	heat-source supply and return nodes, and the supply/return connection points
+	of the 14 consumers (2 nodes per consumer).} This configuration mirrors real-world
 conditions where sensor coverage is sparse. Since edge-level regression is
 impractical under such sparsity, we reformulated the problem as multi-class
 classification. For this purpose, we adapted the architecture by replacing the
@@ -697,6 +708,11 @@ dataset was split into training, validation, and test sets with a ratio of
 70:15:15. \textcolor{blue}{We conducted 3-fold cross-validation, obtaining
 	consistent accuracy scores (0.913±0.011, averaged between two subnets) across
 	folds, confirming that the results do not depend on a particular data split.}
+\textcolor{blue}{The split was performed randomly over generated operational
+	states; therefore, outdoor-temperature regimes and severity ranges may be
+	represented in all subsets. The evaluation thus measures interpolation across
+	fault locations and operating states within the simulated operating envelope,
+	rather than extrapolation to completely unseen climate regimes.}
 
 The model was optimized using Adam. The initial learning rate was set to
 $10^{-3}$, with $\beta = (0.9, 0.99)$, $\varepsilon = 10^{-8}$, and weight
@@ -758,9 +774,14 @@ locations across the network sections and an additional class representing the
 normal operating state ("no defect"). The mean Accuracy and Macro F1 scores
 exceeding 90\% demonstrate that the model exhibits strong predictive
 performance on sparse data, successfully capturing graph dependencies and
-effectively handling the classification task. \textcolor{blue}{The F1-score is
-	the harmonic mean of precision and recall, while macro F1 is the unweighted
-	average of per-class F1 scores.}
+effectively handling the classification task. \textcolor{blue}{For a given
+	class, precision is the fraction of predictions assigned to that class that
+	are correct, while recall is the fraction of true samples of that class that
+	are detected. The F1-score is their harmonic mean,
+	$F1=2\cdot(\mathrm{precision}\cdot\mathrm{recall})/
+		(\mathrm{precision}+\mathrm{recall})$. Macro F1 is the unweighted average
+	of per-class F1 values and is therefore sensitive to performance on rare
+	classes instead of being dominated by larger classes.}
 
 \begin{table}[H]
 	\centering
@@ -819,7 +840,21 @@ horizontal line at distance 0 with value 1.0.
 	\caption{Distance confusion matrices: (\textbf{a}) Supply subnet. (\textbf{b}) Return subnet. \label{fig:dist_cm}}
 \end{figure}
 
-\textcolor{blue}{Segment 41 consists of a single pipe connecting a consumer to a branching node, resulting in fewer training examples compared to segments containing multiple pipes (N pipes \texttimes{} 225 defective samples per pipe). Additionally, segment 41 is topologically the farthest from the heat source among supply-side segments; temperature and pressure signals are attenuated, making the defect less pronounced. Consequently, the model often misclassifies faults from segment 41 as belonging to neighbouring segments 32 or 36, each of which comprises more pipes.}
+\textcolor{blue}{For segment 41, the value 1.0 at nonzero distance means that
+	all 43 test samples belonging to this segment were assigned to another
+	section. Segment 41 consists of a single pipe connecting a consumer to a
+	branching node, resulting in fewer training examples compared to segments
+	containing multiple pipes (N pipes \texttimes{} 225 defective samples per
+	pipe). Additionally, segment 41 is topologically the farthest from the heat
+	source among supply-side segments; temperature and pressure signals are
+	attenuated, making the defect less pronounced. Consequently, the model
+	misclassifies faults from segment 41 as belonging to neighbouring segments 32
+	or 36, each of which comprises more pipes. The confusion matrix therefore
+	indicates a local ambiguity among segments 32, 36, and 41 rather than random
+	class substitutions. These sections are located in the most remote part of the
+	supply subnet relative to the heat source, where pressure and temperature
+	disturbances are weaker; this remoteness explains why defects in these
+	segments are harder for the model to distinguish.}
 
 Notably, the distribution of errors in Figure \ref{fig:dist_cm} demonstrates a
 strong bias towards local mistakes. We observe that the error mass is heavily
@@ -830,6 +865,27 @@ correctly identifies the neighborhood of the fault even if it misassigns the
 specific pipe edge. From an operational standpoint, this suggests that even in
 cases of misclassification, the model effectively narrows the search area to
 the vicinity of the actual fault.
+
+\textcolor{blue}{To complement the hop-based analysis, we also evaluated the
+	metric localization error along the pipe network. For each prediction, the
+	representative predicted position was taken as the midpoint of the predicted
+	graph section, and the true position was taken as the midpoint of the defective
+	pipe. The distance was then computed along the shortest path in the network
+	using pipe lengths as edge weights. Figure~\ref{fig:metric_dist} shows that
+	the physical-distance analysis is consistent with the topological-distance
+	result: most correct and near-correct predictions remain spatially close to
+	the true defect, while the largest errors are concentrated in the same
+	problematic regions identified by the confusion matrices.}
+
+\begin{figure}[H]
+	\begin{adjustwidth}{-\extralength}{0cm}
+		\centering
+		\subfloat[\centering]{\includegraphics[width=16.0cm]{Figures/fwd_result_metric_distance_scatter.png}}
+		\\
+		\subfloat[\centering]{\includegraphics[width=16.0cm]{Figures/bwd_result_metric_distance_scatter.png}}
+	\end{adjustwidth}
+	\caption{Metric localization error measured along the pipe network: (\textbf{a}) Supply subnet. (\textbf{b}) Return subnet. Green points correspond to correctly classified samples, red crosses correspond to misclassified samples, and the dark horizontal marks show the mean distance for each predicted section. \label{fig:metric_dist}}
+\end{figure}
 
 \begin{figure}[H]
 	\begin{adjustwidth}{-\extralength}{0cm}
@@ -843,20 +899,39 @@ the vicinity of the actual fault.
 		\label{fig:pred_distribution}}
 \end{figure}
 
+\textcolor{blue}{Figure~\ref{fig:pred_distribution} should be interpreted as
+	a marginal class-count diagnostic rather than as a direct measure of
+	class-wise localization accuracy. Similar true and predicted counts can still
+	hide compensating errors between neighbouring sections. Therefore, the
+	distribution plot is considered together with the confusion matrices in
+	Figures~\ref{fig:confusion_matrix_fwd} and~\ref{fig:confusion_matrix_bwd},
+	which show the actual class-to-class error structure.}
+
 \begin{figure}[H]
-	\centering
-	\subfloat[\centering]{\includegraphics[width=10.0cm]{Figures/fwd_result_confusion_matrix.png}}
-	% \hfill
-	\\
-	\subfloat[\centering]{\includegraphics[width=10.0cm]{Figures/bwd_result_confusion_matrix.png}}
-	\caption{Confusion matrices for (\textbf{a}) supply and (\textbf{b}) return subnets, excluding "no defect" class.
-		\label{fig:confusion_matrix}}
+	\begin{adjustwidth}{-\extralength}{0cm}
+		\centering
+		\includegraphics[width=16.0cm]{Figures/fwd_result_confusion_matrix_normalized.png}
+	\end{adjustwidth}
+	\caption{Confusion matrix for the supply subnet, excluding the "no defect" class.
+		\label{fig:confusion_matrix_fwd}}
+\end{figure}
+
+\begin{figure}[H]
+	\begin{adjustwidth}{-\extralength}{0cm}
+		\centering
+		\includegraphics[width=16.0cm]{Figures/bwd_result_confusion_matrix_normalized.png}
+	\end{adjustwidth}
+	\caption{Confusion matrix for the return subnet, excluding the "no defect" class.
+		\label{fig:confusion_matrix_bwd}}
 \end{figure}
 
 \textcolor{blue}{The distribution of predicted classes and the corresponding confusion matrices
-on Figures~\ref{fig:pred_distribution} and \ref{fig:confusion_matrix} support
-the earlier observations. For the supply subnet, almost all errors are concentrated
-on segment 41. For the return subnet, the
+on Figures~\ref{fig:pred_distribution}, \ref{fig:confusion_matrix_fwd},
+and~\ref{fig:confusion_matrix_bwd} support
+the earlier observations. For the supply subnet, the main errors are
+concentrated in the remote group of segments 32, 36, and 41, with segment 41
+being the most problematic case; this confirms that the model has difficulty
+separating weak fault signatures in the farthest part of the network. For the return subnet, the
 diffuse, scattered pattern of misclassifications across multiple classes
 confirms that the narrower dynamic range makes fault signatures less
 discriminative, and the noise begins to mask the underlying data patterns.}
@@ -972,10 +1047,11 @@ disturbances along the network topology.
 These findings suggest that topology-aware deep learning offers a promising
 approach for DHN monitoring. Future work will focus on validating the approach
 on historical field data from operational networks and testing it across
-different district heating geometries, while addressing the inevitable domain
-shift between simulated training regimes and real-world seasonal and load
-variations. However, we recognize that the most significant challenge remains
-the acquisition of high-quality, labeled data to support such data-driven
+different district heating geometries and sensor layouts, while addressing the
+inevitable domain shift between simulated training regimes and real-world
+seasonal and load variations.
+However, we recognize that the most significant challenge remains the
+acquisition of high-quality, labeled data to support such data-driven
 methodologies.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
