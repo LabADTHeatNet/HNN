@@ -890,44 +890,37 @@ the vicinity of the actual fault.
 \begin{figure}[H]
 	\begin{adjustwidth}{-\extralength}{0cm}
 		\centering
-		\subfloat[\centering]{\includegraphics[width=16.0cm]{Figures/fwd_result_class_distribution_split.png}}
-		% \hfill
+		\subfloat[\centering Class distribution]{\includegraphics[width=15.5cm]{Figures/fwd_result_class_distribution_split.png}}
 		\\
-		\subfloat[\centering]{\includegraphics[width=16.0cm]{Figures/bwd_result_class_distribution_split.png}}
+		\subfloat[\centering Normalized confusion matrix]{\includegraphics[width=15.5cm]{Figures/fwd_result_confusion_matrix_normalized.png}}
 	\end{adjustwidth}
-	\caption{Distribution of predicted classes for (\textbf{a}) supply and (\textbf{b}) return subnets, excluding "no defect" class.
-		\label{fig:pred_distribution}}
-\end{figure}
-
-\textcolor{blue}{Figure~\ref{fig:pred_distribution} should be interpreted as
-	a marginal class-count diagnostic rather than as a direct measure of
-	class-wise localization accuracy. Similar true and predicted counts can still
-	hide compensating errors between neighbouring sections. Therefore, the
-	distribution plot is considered together with the confusion matrices in
-	Figures~\ref{fig:confusion_matrix_fwd} and~\ref{fig:confusion_matrix_bwd},
-	which show the actual class-to-class error structure.}
-
-\begin{figure}[H]
-	\begin{adjustwidth}{-\extralength}{0cm}
-		\centering
-		\includegraphics[width=16.0cm]{Figures/fwd_result_confusion_matrix_normalized.png}
-	\end{adjustwidth}
-	\caption{Confusion matrix for the supply subnet, excluding the "no defect" class.
-		\label{fig:confusion_matrix_fwd}}
+	\caption{Supply-subnet diagnostics, excluding the "no defect" class: (\textbf{a}) distribution of predicted classes and (\textbf{b}) normalized confusion matrix.
+		\label{fig:supply_distribution_confusion}}
 \end{figure}
 
 \begin{figure}[H]
 	\begin{adjustwidth}{-\extralength}{0cm}
 		\centering
-		\includegraphics[width=16.0cm]{Figures/bwd_result_confusion_matrix_normalized.png}
+		\subfloat[\centering Class distribution]{\includegraphics[width=15.5cm]{Figures/bwd_result_class_distribution_split.png}}
+		\\
+		\subfloat[\centering Normalized confusion matrix]{\includegraphics[width=15.5cm]{Figures/bwd_result_confusion_matrix_normalized.png}}
 	\end{adjustwidth}
-	\caption{Confusion matrix for the return subnet, excluding the "no defect" class.
-		\label{fig:confusion_matrix_bwd}}
+	\caption{Return-subnet diagnostics, excluding the "no defect" class: (\textbf{a}) distribution of predicted classes and (\textbf{b}) normalized confusion matrix.
+		\label{fig:return_distribution_confusion}}
 \end{figure}
+
+\textcolor{blue}{The class-distribution panels in
+Figures~\ref{fig:supply_distribution_confusion}
+and~\ref{fig:return_distribution_confusion} should be interpreted as marginal
+class-count diagnostics rather than as direct measures of class-wise
+localization accuracy. Similar true and predicted counts can still hide
+compensating errors between neighbouring sections. Therefore, the distribution
+plots are considered together with the corresponding confusion matrices, which
+show the actual class-to-class error structure.}
 
 \textcolor{blue}{The distribution of predicted classes and the corresponding confusion matrices
-on Figures~\ref{fig:pred_distribution}, \ref{fig:confusion_matrix_fwd},
-and~\ref{fig:confusion_matrix_bwd} support
+in Figures~\ref{fig:supply_distribution_confusion}
+and~\ref{fig:return_distribution_confusion} support
 the earlier observations. For the supply subnet, the main errors are
 concentrated in the remote group of segments 32, 36, and 41, with segment 41
 being the most problematic case; this confirms that the model has difficulty

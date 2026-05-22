@@ -1,15 +1,15 @@
 # Fdb version 4
-["bibtex main"] 1779433446.96644 "main.aux" "main.bbl" "main" 1779433450.16363 0
+["bibtex main"] 1779433696.59715 "main.aux" "main.bbl" "main" 1779433773.54321 0
   "./Definitions/mdpi.bst" 1779252904 23683 4afe8e0b352a18c39ff91c43fd26f4b2 ""
   "./bibliography.bib" 1779431042.78729 17409 02a3c28b3419f9722776d03169eb3b57 ""
-  "main.aux" 1779433449.85564 15027 c4844669028e93dc6acf79c7ded34bfc "pdflatex"
+  "main.aux" 1779433773.2533 15302 c5818d2630a2fd242678c2575064e03e "pdflatex"
   (generated)
   "main.bbl"
   "main.blg"
   (rewritten before read)
-["pdflatex"] 1779433447.06731 "/home/ivan/python/heatnet/article/main.tex" "main.pdf" "main" 1779433450.16377 0
+["pdflatex"] 1779433770.43451 "/home/ivan/python/heatnet/article/main.tex" "main.pdf" "main" 1779433773.54336 0
   "/etc/texmf/web2c/texmf.cnf" 1779351546.26058 475 c0e671620eb5563b2130f56340a5fde8 ""
-  "/home/ivan/python/heatnet/article/main.tex" 1779433437.19472 83047 85699b6618ac6eb4e4b2f9eb667f1654 ""
+  "/home/ivan/python/heatnet/article/main.tex" 1779433687.86195 83100 dde33fb6097eb893fbaa4f703bdfdf91 ""
   "/usr/share/texlive/texmf-dist/fonts/enc/dvips/base/8r.enc" 1165713224 4850 80dc9bab7f31fb78a000ccfed0e27cab ""
   "/usr/share/texlive/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
   "/usr/share/texlive/texmf-dist/fonts/tfm/adobe/palatino/pplb7t.tfm" 1136768653 1616 371d1ee60c04b008c8fd760060cd34f1 ""
@@ -261,7 +261,6 @@
   "/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map" 1779351571.96003 5472669 54eaf61a88b6b7896ebd0dac973cb29c ""
   "/var/lib/texmf/web2c/pdftex/pdflatex.fmt" 1779351637 8215354 79ce8b04f5f2c9ac01e6eeb81769a0fd ""
   "Definitions/journalnames.tex" 1779252904 111264 8eedf5dee628f990080269740349d346 ""
-  "Definitions/logo-mdpi-eps-converted-to.pdf" 1779427593.43056 13153 113ffcaa2add299f3ced20d3bc215908 ""
   "Definitions/logo-mdpi.eps" 1779252906 563678 6065ff936803124b091b05458e057116 ""
   "Definitions/logo-orcid.pdf" 1779252906 12671 39a20ba789123aa897c7efc569fb5270 ""
   "Definitions/mdpi.cls" 1779252904 62373 522ff94f7feedac3af8d56ada889ebe8 ""
@@ -280,10 +279,10 @@
   "Figures/k_0.png" 1779252910 33641 bf02dbc908fb96df184b3d65968d07ee ""
   "Figures/k_1.png" 1779252910 38039 60cebb71e088b4a9f2514a25272265f9 ""
   "Figures/k_2.png" 1779252910 40211 c36356b6b3697bc0ff174b8d5c1bed80 ""
-  "main.aux" 1779433449.85564 15027 c4844669028e93dc6acf79c7ded34bfc "pdflatex"
-  "main.bbl" 1779433447.06232 12073 e6d6348dd09ccf58288b092fa4361cfc "bibtex main"
-  "main.out" 1779433449.85664 2258 82ce1fc31ca0241d6c775ddc57379e6d "pdflatex"
-  "main.tex" 1779433437.19472 83047 85699b6618ac6eb4e4b2f9eb667f1654 ""
+  "main.aux" 1779433773.2533 15302 c5818d2630a2fd242678c2575064e03e "pdflatex"
+  "main.bbl" 1779433696.69758 12202 6b041dfa7abe9a8340717dc4bca331b0 "bibtex main"
+  "main.out" 1779433773.2543 2258 82ce1fc31ca0241d6c775ddc57379e6d "pdflatex"
+  "main.tex" 1779433687.86195 83100 dde33fb6097eb893fbaa4f703bdfdf91 ""
   (generated)
   "main.aux"
   "main.log"
