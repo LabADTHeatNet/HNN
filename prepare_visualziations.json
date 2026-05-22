@@ -1,0 +1,573 @@
+{
+  "output_dir": "article/Figures_regenerated",
+  "style": {
+    "dpi": 220
+  },
+  "training_curves": {
+    "event_file": "out_Termo_Ablation_heads/8_heads/events.out.tfevents.1772179389.gpu-5-0.768624.1",
+    "style": {
+      "figsize": [
+        6.0,
+        4.0
+      ],
+      "base_font_size": 11.0,
+      "xlabel": "Epoch",
+      "min_x": 1,
+      "max_x": 100,
+      "line_width": 2.6,
+      "legend_loc": "best",
+      "legend_ncol": 1,
+      "legend_font_size": 10.0,
+      "best_marker_size": 36,
+      "best_marker_color": "#273142",
+      "best_text_font_size": 9.5,
+      "best_text_color": "#273142",
+      "best_text_offset": [
+        8,
+        10
+      ]
+    },
+    "figures": [
+      {
+        "file": "Loss_train.png",
+        "tag": "Loss/train",
+        "ylabel": "Loss",
+        "color": "#F28E2B",
+        "accuracy_axis": false,
+        "annotate_best": false,
+        "style": {
+          "min_y": 1.15,
+          "max_y": 2.85,
+          "best_label": "Min",
+          "best_text_template": "{label}: {value:.3f} @ {epoch}"
+        }
+      },
+      {
+        "file": "Loss_val.png",
+        "tag": "Loss/val",
+        "ylabel": "Loss",
+        "color": "#8E6BBE",
+        "accuracy_axis": false,
+        "annotate_best": false,
+        "style": {
+          "min_y": 1.15,
+          "max_y": 2.85,
+          "best_label": "Min",
+          "best_text_template": "{label}: {value:.3f} @ {epoch}"
+        }
+      },
+      {
+        "file": "Accuracy_train.png",
+        "tag": "Accuracy/train",
+        "ylabel": "Accuracy",
+        "color": "#F28E2B",
+        "accuracy_axis": true,
+        "annotate_best": false,
+        "style": {
+          "min_y": 0.5,
+          "max_y": 0.95,
+          "best_label": "Best",
+          "best_text_template": "{label}: {value:.3f} @ {epoch}"
+        }
+      },
+      {
+        "file": "Accuracy_val.png",
+        "tag": "Accuracy/val",
+        "ylabel": "Accuracy",
+        "color": "#8E6BBE",
+        "accuracy_axis": true,
+        "annotate_best": false,
+        "style": {
+          "min_y": 0.5,
+          "max_y": 0.95,
+          "best_label": "Best",
+          "best_text_template": "{label}: {value:.3f} @ {epoch}"
+        }
+      },
+      {
+        "file": "Accuracy_combined.png",
+        "ylabel": "Accuracy",
+        "accuracy_axis": true,
+        "annotate_best": false,
+        "series": [
+          {
+            "tag": "Accuracy/train",
+            "label": "Train",
+            "color": "#F28E2B",
+            "best_text_offset": [
+              8,
+              10
+            ]
+          },
+          {
+            "tag": "Accuracy/val",
+            "label": "Validation",
+            "color": "#8E6BBE",
+            "best_text_offset": [
+              8,
+              -16
+            ]
+          }
+        ],
+        "style": {
+          "min_y": 0.5,
+          "max_y": 0.95,
+          "legend_loc": "lower right",
+          "legend_ncol": 2
+        }
+      },
+      {
+        "file": "Loss_combined.png",
+        "ylabel": "Loss",
+        "accuracy_axis": false,
+        "annotate_best": false,
+        "series": [
+          {
+            "tag": "Loss/train",
+            "label": "Train",
+            "color": "#F28E2B",
+            "best_text_offset": [
+              8,
+              10
+            ]
+          },
+          {
+            "tag": "Loss/val",
+            "label": "Validation",
+            "color": "#8E6BBE",
+            "best_text_offset": [
+              8,
+              -16
+            ]
+          }
+        ],
+        "style": {
+          "min_y": 1.15,
+          "max_y": 2.85,
+          "legend_loc": "upper right",
+          "legend_ncol": 2
+        }
+      }
+    ]
+  },
+  "network_examples": {
+    "style": {
+      "figsize": [
+        10.5,
+        6.8
+      ],
+      "base_font_size": 10.5,
+      "use_shared_bounds": true,
+      "pad_ratio": 0.06,
+      "min_pad_x": 30.0,
+      "min_pad_y": 25.0,
+      "invert_y": false,
+      "pipe_color_fwd": "#D1495B",
+      "pipe_color_bwd": "#2B59C3",
+      "pipe_color_consumer": "#2F855A",
+      "highlight_color": "#2F855A",
+      "pipe_line_width": 2.8,
+      "consumer_line_width": 3.0,
+      "highlight_line_width": 3.8,
+      "section_label_font_size": 7.4,
+      "section_label_color": "#273142",
+      "legend_font_size": 10.0,
+      "legend_single_row": true,
+      "legend_loc": "lower left",
+      "legend_bbox_to_anchor": [
+        0.018,
+        0.018
+      ],
+      "legend_ncol": 7,
+      "legend_columnspacing": 1.4,
+      "legend_handletextpad": 0.6,
+      "figure_margins": {
+        "left": 0.015,
+        "right": 0.985,
+        "top": 0.985,
+        "bottom": 0.14
+      },
+      "legend_label_supply": "Supply pipes",
+      "legend_label_return": "Return pipes",
+      "draw_consumer_edges_on": "fwd",
+      "node_styles": {
+        "source": {
+          "size": 160,
+          "label": "Source"
+        },
+        "sink": {
+          "size": 160,
+          "label": "Sink"
+        },
+        "consumer": {
+          "size": 120,
+          "label": "Consumer"
+        },
+        "junction": {
+          "size": 40,
+          "label": "Junction"
+        },
+        "intermediate": {
+          "size": 14,
+          "label": "Intermediate"
+        }
+      }
+    },
+    "figures": [
+      {
+        "file": "dhn_example.png",
+        "kind": "combined",
+        "fwd_nodes_csv": "out_Termo_Ablation_heads/8_heads/results/fwd/Tout_-3/problem/tube_133/Thermo_model_db_n_nodes_pr3_fwd.csv",
+        "fwd_edges_csv": "out_Termo_Ablation_heads/8_heads/results/fwd/Tout_-3/problem/tube_133/Thermo_model_db_n_tubes_pr3_fwd.csv",
+        "bwd_nodes_csv": "out_Termo_Ablation_heads/8_heads/results/bwd/Tout_-3/problem/tube_133/Thermo_model_db_n_nodes_pr3_bwd.csv",
+        "bwd_edges_csv": "out_Termo_Ablation_heads/8_heads/results/bwd/Tout_-3/problem/tube_133/Thermo_model_db_n_tubes_pr3_bwd.csv",
+        "show_section_labels": "fwd"
+      },
+      {
+        "file": "fwd_example.png",
+        "kind": "subnet",
+        "direction": "fwd",
+        "nodes_csv": "out_Termo_Ablation_heads/8_heads/results/fwd/Tout_-3/problem/tube_133/Thermo_model_db_n_nodes_pr3_fwd.csv",
+        "edges_csv": "out_Termo_Ablation_heads/8_heads/results/fwd/Tout_-3/problem/tube_133/Thermo_model_db_n_tubes_pr3_fwd.csv",
+        "show_section_labels": "fwd",
+        "highlight_graph_label": false
+      },
+      {
+        "file": "bwd_example.png",
+        "kind": "subnet",
+        "direction": "bwd",
+        "nodes_csv": "out_Termo_Ablation_heads/8_heads/results/bwd/Tout_-2/problem/tube_86/Thermo_model_db_n_nodes_pr3_bwd.csv",
+        "edges_csv": "out_Termo_Ablation_heads/8_heads/results/bwd/Tout_-2/problem/tube_86/Thermo_model_db_n_tubes_pr3_bwd.csv",
+        "show_section_labels": "bwd",
+        "highlight_graph_label": false
+      }
+    ]
+  },
+  "distance_confusion": {
+    "sections_distances_csv": "sections_distances.csv",
+    "style": {
+      "figsize": [
+        4.0,
+        9.0
+      ],
+      "base_font_size": 10.0,
+      "xlabel": "Topological distance to prediction",
+      "ylabel": "True section",
+      "xtick_font_size": 9.0,
+      "ytick_font_size": 8.0,
+      "annotation_font_size": 6.4,
+      "grid_color": "#D7DCE5",
+      "grid_linewidth": 0.65,
+      "colorbar_label": "Share of predictions",
+      "colorbar_fraction": 0.046,
+      "colorbar_pad": 0.03,
+      "colorbar_rotation": 90,
+      "colorbar_tick_font_size": 9.0
+    },
+    "transposed_style": {
+      "figsize": [
+        9.0,
+        3.0
+      ],
+      "xlabel": "True section",
+      "ylabel": "Topological distance to prediction"
+    },
+    "figures": [
+      {
+        "file": "fwd_result_distance_confusion_matrix.png",
+        "transposed_file": "fwd_result_distance_confusion_matrix_transposed.png",
+        "results_dir": "out_Termo_Ablation_heads/8_heads/results/fwd",
+        "exclude_classes": [],
+        "auto_exclude_max_label": true,
+        "max_distance": 5,
+        "annotation_threshold": 0.01,
+        "save_transposed": true,
+        "style": {
+          "cmap_name": "article_reds",
+          "cmap_colors": [
+            "#FFFFFF",
+            "#F7CFC6",
+            "#D1495B"
+          ]
+        }
+      },
+      {
+        "file": "bwd_result_distance_confusion_matrix.png",
+        "transposed_file": "bwd_result_distance_confusion_matrix_transposed.png",
+        "results_dir": "out_Termo_Ablation_heads/8_heads/results/bwd",
+        "exclude_classes": [],
+        "auto_exclude_max_label": true,
+        "max_distance": 5,
+        "annotation_threshold": 0.01,
+        "save_transposed": true,
+        "style": {
+          "cmap_name": "article_blues",
+          "cmap_colors": [
+            "#FFFFFF",
+            "#C9D8FF",
+            "#2B59C3"
+          ]
+        }
+      }
+    ]
+  },
+  "confusion_matrix": {
+    "style": {
+      "figsize": [
+        8.0,
+        8.2
+      ],
+      "base_font_size": 10.0,
+      "xlabel": "Predicted section",
+      "ylabel": "True section",
+      "xtick_font_size": 7.6,
+      "ytick_font_size": 7.6,
+      "xtick_rotation": 90,
+      "xtick_ha": "center",
+      "annotation_font_size": 5.8,
+      "grid_color": "#D7DCE5",
+      "grid_linewidth": 0.65,
+      "colorbar_label": "Number of samples",
+      "colorbar_fraction": 0.046,
+      "colorbar_pad": 0.03,
+      "colorbar_rotation": 90,
+      "colorbar_tick_font_size": 9.0
+    },
+    "figures": [
+      {
+        "file": "fwd_result_confusion_matrix.png",
+        "results_dir": "out_Termo_Ablation_heads/8_heads/results/fwd",
+        "exclude_classes": [],
+        "auto_exclude_max_label": true,
+        "normalize_rows": false,
+        "annotation_threshold": 0.5,
+        "style": {
+          "cmap_name": "article_reds_confusion",
+          "cmap_colors": [
+            "#FFFFFF",
+            "#F7CFC6",
+            "#D1495B"
+          ]
+        }
+      },
+      {
+        "file": "fwd_result_confusion_matrix_normalized.png",
+        "results_dir": "out_Termo_Ablation_heads/8_heads/results/fwd",
+        "exclude_classes": [],
+        "auto_exclude_max_label": true,
+        "normalize_rows": true,
+        "annotation_threshold": 0.01,
+        "style": {
+          "cmap_name": "article_reds_confusion_norm",
+          "cmap_colors": [
+            "#FFFFFF",
+            "#F7CFC6",
+            "#D1495B"
+          ],
+          "colorbar_label": "Share of predictions"
+        }
+      },
+      {
+        "file": "bwd_result_confusion_matrix.png",
+        "results_dir": "out_Termo_Ablation_heads/8_heads/results/bwd",
+        "exclude_classes": [],
+        "auto_exclude_max_label": true,
+        "normalize_rows": false,
+        "annotation_threshold": 0.5,
+        "style": {
+          "cmap_name": "article_blues_confusion",
+          "cmap_colors": [
+            "#FFFFFF",
+            "#C9D8FF",
+            "#2B59C3"
+          ]
+        }
+      },
+      {
+        "file": "bwd_result_confusion_matrix_normalized.png",
+        "results_dir": "out_Termo_Ablation_heads/8_heads/results/bwd",
+        "exclude_classes": [],
+        "auto_exclude_max_label": true,
+        "normalize_rows": true,
+        "annotation_threshold": 0.01,
+        "style": {
+          "cmap_name": "article_blues_confusion_norm",
+          "cmap_colors": [
+            "#FFFFFF",
+            "#C9D8FF",
+            "#2B59C3"
+          ],
+          "colorbar_label": "Share of predictions"
+        }
+      }
+    ]
+  },
+  "class_distribution": {
+    "style": {
+      "figsize": [
+        10.0,
+        4.8
+      ],
+      "base_font_size": 10.5,
+      "xlabel": "Section",
+      "ylabel": "Number of samples",
+      "xtick_font_size": 8.0,
+      "ytick_font_size": 9.0,
+      "xtick_rotation": 0,
+      "xtick_ha": "center",
+      "bar_width": 0.38,
+      "bar_edge_color": "#273142",
+      "bar_edge_width": 0.6,
+      "true_color": "#B8C2CC",
+      "true_label": "True",
+      "pred_label": "Predicted",
+      "legend_loc": "upper right",
+      "legend_ncol": 2,
+      "legend_font_size": 10.0,
+      "min_y": 0
+    },
+    "figures": [
+      {
+        "file": "fwd_result_class_distribution.png",
+        "results_dir": "out_Termo_Ablation_heads/8_heads/results/fwd",
+        "exclude_classes": [],
+        "auto_exclude_max_label": true,
+        "style": {
+          "pred_color": "#D1495B"
+        }
+      },
+      {
+        "file": "fwd_result_class_distribution_split.png",
+        "results_dir": "out_Termo_Ablation_heads/8_heads/results/fwd",
+        "exclude_classes": [],
+        "auto_exclude_max_label": true,
+        "split_predicted": true,
+        "style": {
+          "bar_width": 0.26,
+          "pred_right_color": "#2F855A",
+          "pred_right_label": "Predicted Right",
+          "pred_wrong_color": "#D1495B",
+          "pred_wrong_label": "Predicted Wrong",
+          "legend_ncol": 3
+        }
+      },
+      {
+        "file": "bwd_result_class_distribution.png",
+        "results_dir": "out_Termo_Ablation_heads/8_heads/results/bwd",
+        "exclude_classes": [],
+        "auto_exclude_max_label": true,
+        "style": {
+          "pred_color": "#2B59C3"
+        }
+      },
+      {
+        "file": "bwd_result_class_distribution_split.png",
+        "results_dir": "out_Termo_Ablation_heads/8_heads/results/bwd",
+        "exclude_classes": [],
+        "auto_exclude_max_label": true,
+        "split_predicted": true,
+        "style": {
+          "bar_width": 0.26,
+          "pred_right_color": "#2F855A",
+          "pred_right_label": "Predicted Right",
+          "pred_wrong_color": "#D1495B",
+          "pred_wrong_label": "Predicted Wrong",
+          "legend_ncol": 3
+        }
+      }
+    ]
+  },
+  "segment_structure_histogram": {
+    "style": {
+      "figsize": [
+        10.0,
+        4.8
+      ],
+      "base_font_size": 10.5,
+      "xlabel": "Section",
+      "count_ylabel": "Number of pipes",
+      "length_ylabel": "Total length, m",
+      "xtick_font_size": 8.0,
+      "ytick_font_size": 9.0,
+      "xtick_rotation": 0,
+      "xtick_ha": "center",
+      "bar_width": 0.38,
+      "bar_edge_color": "#273142",
+      "bar_edge_width": 0.6,
+      "count_color": "#AAB6C3",
+      "count_label": "Number of pipes",
+      "length_color": "#C9B89B",
+      "length_label": "Total length",
+      "legend_loc": "upper right",
+      "legend_ncol": 2,
+      "legend_font_size": 10.0,
+      "min_y_left": 0,
+      "min_y_right": 0
+    },
+    "figures": [
+      {
+        "file": "fwd_segment_structure_histogram.png",
+        "results_dir": "out_Termo_Ablation_heads/8_heads/results/fwd",
+        "nodes_csv": "out_Termo_Ablation_heads/8_heads/results/fwd/Tout_-3/problem/tube_133/Thermo_model_db_n_nodes_pr3_fwd.csv",
+        "edges_csv": "out_Termo_Ablation_heads/8_heads/results/fwd/Tout_-3/problem/tube_133/Thermo_model_db_n_tubes_pr3_fwd.csv",
+        "direction": "fwd",
+        "exclude_classes": [],
+        "auto_exclude_max_label": true
+      }
+    ]
+  },
+  "metric_distance_scatter": {
+    "full_graph_root": "datasets/Termo_model",
+    "style": {
+      "figsize": [
+        9.2,
+        3.8
+      ],
+      "base_font_size": 10.2,
+      "xlabel": "Predicted section",
+      "ylabel": "Distance from predicted section midpoint to defect pipe midpoint, m",
+      "xtick_font_size": 8.5,
+      "ytick_font_size": 9.0,
+      "xtick_rotation": 0,
+      "xtick_ha": "center",
+      "point_size": 14.0,
+      "point_alpha": 0.5,
+      "jitter_width": 0.26,
+      "correct_color": "#2F855A",
+      "correct_label": "Correct",
+      "incorrect_color": "#D1495B",
+      "incorrect_label": "Incorrect",
+      "incorrect_marker": "x",
+      "incorrect_point_size": 18.0,
+      "incorrect_linewidth": 1.2,
+      "incorrect_point_alpha": 0.75,
+      "draw_mean_line": true,
+      "mean_color": "#273142",
+      "mean_label": "Mean",
+      "mean_bin_half_width": 0.5,
+      "mean_line_color": "#273142",
+      "mean_line_width": 2.0,
+      "mean_line_alpha": 0.9,
+      "legend_loc": "upper right",
+      "legend_ncol": 3,
+      "legend_font_size": 9.5,
+      "min_y": 0
+    },
+    "figures": [
+      {
+        "file": "fwd_result_metric_distance_scatter.png",
+        "results_dir": "out_Termo_Ablation_heads/8_heads/results/fwd",
+        "direction": "fwd",
+        "exclude_classes": [],
+        "auto_exclude_max_label": true
+      },
+      {
+        "file": "bwd_result_metric_distance_scatter.png",
+        "results_dir": "out_Termo_Ablation_heads/8_heads/results/bwd",
+        "direction": "bwd",
+        "exclude_classes": [],
+        "auto_exclude_max_label": true
+      }
+    ]
+  }
+}
