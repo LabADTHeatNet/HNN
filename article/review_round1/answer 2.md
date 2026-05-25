@@ -26,7 +26,7 @@ Response 5: We revised the terminology in the Abstract and Keywords. The task st
 
 Comments 6: line 44: measurement of noise
 
-Response 6: We revised the wording in the Introduction paragraph on physics-based methods and clarified the noise simulation procedure in Section 2.4. The manuscript now refers to measurement noise/measurement uncertainty and explains that environmental fluctuations and measurement uncertainty are simulated by applying random variations within 5% of the heat-transfer coefficient on a randomly selected subset of pipes. (line 55, lines 273-274).
+Response 6: We revised the wording in the Introduction paragraph on physics-based methods and clarified the noise simulation procedure in Section 2.4. The manuscript now refers to measurement noise/measurement uncertainty and explains that environmental fluctuations and measurement uncertainty are simulated by applying random variations within 5% of the heat-transfer coefficient on a randomly selected subset of pipes. (lines 273-274).
 
 Comments 7: line 58: Do you have a reference for this hypothesis?
 
@@ -34,7 +34,7 @@ Response 7: The comment refers to the Introduction statement that models perform
 
 Comments 8: line 99: The research gab could be formulated more clearly.
 
-Response 8: We revised the final part of the Introduction to state the research gap more explicitly, immediately before the transition to Materials and Methods. The revised text explains that most topology-aware leakage-localization evidence comes from water and gas networks or from settings whose sensing and data conditions do not directly match operational DHNs. The resulting gap is topology-aware fault localization for DHNs under sparse SCADA-like measurements and limited labeled field data. (lines 99-114).
+Response 8: We revised the final part of the Introduction to state the research gap more explicitly, immediately before the transition to Materials and Methods. The revised text explains that most topology-aware leakage-localization evidence comes from water and gas networks or from settings whose sensing and data conditions do not directly match operational DHNs. The resulting gap is topology-aware fault localization for DHNs under sparse SCADA-like measurements and limited labeled field data. (lines 99-114, lines 507-515).
 
 Comments 9: line 198: The water losses due to leakage does influence the formula. m will be changed.
 
