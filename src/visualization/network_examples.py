@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.lines import Line2D
+from matplotlib.transforms import Bbox
 
 from .article_style import PALETTE, apply_article_style, save_figure
 
@@ -239,8 +240,6 @@ BWD_SECTION_IDS = np.array(
     dtype=int,
 )
 
-LABEL_OFFSETS = [(0, 0), (6, 4), (-6, 4), (6, -4), (-6, -4), (0, 7), (0, -7)]
-
 DEFAULT_NODE_STYLE_MAP = {
     "source": {"marker": "^", "color": PALETTE["source_node"], "size": 150, "label": "Source"},
     "sink": {"marker": "v", "color": PALETTE["sink_node"], "size": 150, "label": "Sink"},
@@ -457,6 +456,258 @@ def compute_segment_centroids(
     }
 
 
+def _compute_section_layout_info(
+    edges_df: pd.DataFrame,
+    positions: dict[int, tuple[float, float]],
+) -> dict[int, dict[str, float | int | bool | tuple[float, float]]]:
+    accum: dict[int, dict[str, float | int | bool | tuple[float, float]]] = {}
+    for row in edges_df.itertuples():
+        src = int(row.id_in)
+        dst = int(row.id_out)
+        pos_in = positions.get(src)
+        pos_out = positions.get(dst)
+        if pos_in is None or pos_out is None:
+            continue
+
+        seg_id = int(row.id_section)
+        length = max(float(getattr(row, "l", 1.0)), 1.0)
+        is_consumer = float(getattr(row, "Vid_usr", 0.0)) > 0.5
+        mid_x = (pos_in[0] + pos_out[0]) / 2.0
+        mid_y = (pos_in[1] + pos_out[1]) / 2.0
+        vec_x = pos_out[0] - pos_in[0]
+        vec_y = pos_out[1] - pos_in[1]
+
+        entry = accum.setdefault(
+            seg_id,
+            {
+                "x": 0.0,
+                "y": 0.0,
+                "w": 0.0,
+                "edge_count": 0,
+                "consumer_edge_count": 0,
+                "total_length": 0.0,
+                "non_consumer_length": 0.0,
+                "anchor_x": mid_x,
+                "anchor_y": mid_y,
+                "anchor_vec_x": vec_x,
+                "anchor_vec_y": vec_y,
+                "anchor_len": -1.0,
+                "anchor_is_consumer": True,
+            },
+        )
+        entry["x"] += mid_x * length
+        entry["y"] += mid_y * length
+        entry["w"] += length
+        entry["edge_count"] += 1
+        entry["total_length"] += length
+        if is_consumer:
+            entry["consumer_edge_count"] += 1
+        else:
+            entry["non_consumer_length"] += length
+
+        current_anchor_len = float(entry["anchor_len"])
+        use_as_anchor = False
+        if not is_consumer and bool(entry["anchor_is_consumer"]):
+            use_as_anchor = True
+        elif is_consumer == bool(entry["anchor_is_consumer"]) and length > current_anchor_len:
+            use_as_anchor = True
+        elif not is_consumer and not bool(entry["anchor_is_consumer"]) and length > current_anchor_len:
+            use_as_anchor = True
+
+        if use_as_anchor:
+            entry["anchor_x"] = mid_x
+            entry["anchor_y"] = mid_y
+            entry["anchor_vec_x"] = vec_x
+            entry["anchor_vec_y"] = vec_y
+            entry["anchor_len"] = length
+            entry["anchor_is_consumer"] = is_consumer
+
+    result: dict[int, dict[str, float | int | bool | tuple[float, float]]] = {}
+    for seg_id, entry in accum.items():
+        weight = float(entry["w"])
+        if weight <= 0.0:
+            continue
+        edge_count = int(entry["edge_count"])
+        consumer_edge_count = int(entry["consumer_edge_count"])
+        result[seg_id] = {
+            "centroid": (float(entry["x"]) / weight, float(entry["y"]) / weight),
+            "anchor": (float(entry["anchor_x"]), float(entry["anchor_y"])),
+            "anchor_vector": (float(entry["anchor_vec_x"]), float(entry["anchor_vec_y"])),
+            "edge_count": edge_count,
+            "consumer_edge_count": consumer_edge_count,
+            "total_length": float(entry["total_length"]),
+            "non_consumer_length": float(entry["non_consumer_length"]),
+            "is_consumer_only": consumer_edge_count == edge_count,
+        }
+    return result
+
+
+def _normalize_display_vector(
+    ax: plt.Axes,
+    anchor: tuple[float, float],
+    vector: tuple[float, float],
+) -> np.ndarray:
+    start = ax.transData.transform(anchor)
+    end = ax.transData.transform((anchor[0] + vector[0], anchor[1] + vector[1]))
+    display_vec = np.asarray(end - start, dtype=float)
+    norm = float(np.linalg.norm(display_vec))
+    if norm < 1e-6:
+        return np.array([1.0, 0.0], dtype=float)
+    return display_vec / norm
+
+
+def _pixels_to_points(fig: plt.Figure, value: float) -> float:
+    return float(value) * 72.0 / float(fig.dpi)
+
+
+def _candidate_label_offsets(
+    ax: plt.Axes,
+    anchor: tuple[float, float],
+    anchor_vector: tuple[float, float],
+    is_consumer_only: bool,
+    style: dict,
+) -> list[tuple[float, float]]:
+    tangent = _normalize_display_vector(ax, anchor, anchor_vector)
+    normal = np.array([-tangent[1], tangent[0]], dtype=float)
+    directions = [
+        normal,
+        -normal,
+        normal + 0.55 * tangent,
+        normal - 0.55 * tangent,
+        -normal + 0.55 * tangent,
+        -normal - 0.55 * tangent,
+        tangent,
+        -tangent,
+    ]
+
+    base_offset_px = float(style.get("section_label_base_offset_px", 18.0))
+    consumer_scale = float(style.get("section_label_consumer_offset_scale", 1.35))
+    scales = style.get("section_label_distance_scales", [1.0, 1.35, 1.75, 2.2, 2.8])
+    if not isinstance(scales, list) or not scales:
+        scales = [1.0, 1.35, 1.75, 2.2, 2.8]
+    base_scale = consumer_scale if is_consumer_only else 1.0
+
+    offsets: list[tuple[float, float]] = []
+    for scale in scales:
+        radius_px = base_offset_px * base_scale * float(scale)
+        for direction in directions:
+            norm = float(np.linalg.norm(direction))
+            if norm < 1e-6:
+                continue
+            vec_px = direction / norm * radius_px
+            offsets.append((_pixels_to_points(ax.figure, vec_px[0]), _pixels_to_points(ax.figure, vec_px[1])))
+    offsets.append((0.0, 0.0))
+    return offsets
+
+
+def _bbox_overlap_area(left: Bbox, right: Bbox) -> float:
+    dx = min(left.x1, right.x1) - max(left.x0, right.x0)
+    dy = min(left.y1, right.y1) - max(left.y0, right.y0)
+    if dx <= 0.0 or dy <= 0.0:
+        return 0.0
+    return float(dx * dy)
+
+
+def _bbox_outside_area(inner: Bbox, outer: Bbox) -> float:
+    width = max(0.0, float(inner.x1 - inner.x0))
+    height = max(0.0, float(inner.y1 - inner.y0))
+    area = width * height
+    inside_width = max(0.0, min(inner.x1, outer.x1) - max(inner.x0, outer.x0))
+    inside_height = max(0.0, min(inner.y1, outer.y1) - max(inner.y0, outer.y0))
+    return float(max(0.0, area - inside_width * inside_height))
+
+
+def _annotation_alignment(dx_points: float, dy_points: float) -> tuple[str, str]:
+    ha = "center"
+    va = "center"
+    if dx_points > 6.0:
+        ha = "left"
+    elif dx_points < -6.0:
+        ha = "right"
+    if dy_points > 6.0:
+        va = "bottom"
+    elif dy_points < -6.0:
+        va = "top"
+    return ha, va
+
+
+def _place_section_annotation(
+    ax: plt.Axes,
+    seg_id: int,
+    info: dict[str, float | int | bool | tuple[float, float]],
+    color: str,
+    font_size: float,
+    occupied_bboxes: list[Bbox],
+    style: dict,
+    renderer,
+) -> Bbox | None:
+    anchor = info["anchor"]
+    assert isinstance(anchor, tuple)
+    anchor_vector = info["anchor_vector"]
+    assert isinstance(anchor_vector, tuple)
+    is_consumer_only = bool(info["is_consumer_only"])
+    offsets = _candidate_label_offsets(ax, anchor, anchor_vector, is_consumer_only, style)
+    axes_bbox = ax.get_window_extent(renderer=renderer)
+    consumer_font_scale = float(style.get("section_label_consumer_font_scale", 0.88))
+    current_font_size = font_size * (consumer_font_scale if is_consumer_only else 1.0)
+
+    best: tuple[float, float, float, float] | None = None
+    best_annotation = None
+    expand_x = float(style.get("section_label_bbox_expand_x", 1.16))
+    expand_y = float(style.get("section_label_bbox_expand_y", 1.22))
+
+    for dx_points, dy_points in offsets:
+        ha, va = _annotation_alignment(dx_points, dy_points)
+        annotation = ax.annotate(
+            str(int(seg_id)),
+            xy=anchor,
+            xytext=(dx_points, dy_points),
+            textcoords="offset points",
+            ha=ha,
+            va=va,
+            fontsize=current_font_size,
+            color=color,
+            zorder=6,
+            annotation_clip=False,
+            bbox={
+                "boxstyle": f"round,pad={float(style.get('section_label_box_pad', 0.16))}",
+                "facecolor": "white",
+                "edgecolor": "none",
+                "alpha": float(style.get("section_label_box_alpha", 0.84)),
+            },
+            arrowprops={
+                "arrowstyle": "-",
+                "color": style.get("section_label_arrow_color", color),
+                "linewidth": float(style.get("section_label_arrow_line_width", 0.7)),
+                "alpha": float(style.get("section_label_arrow_alpha", 0.65)),
+                "shrinkA": 0.0,
+                "shrinkB": 0.0,
+            } if abs(dx_points) + abs(dy_points) > 1.0 else None,
+        )
+        bbox = annotation.get_window_extent(renderer=renderer).expanded(expand_x, expand_y)
+        overlap_penalty = sum(_bbox_overlap_area(bbox, other) for other in occupied_bboxes)
+        outside_penalty = _bbox_outside_area(bbox, axes_bbox)
+        distance_penalty = abs(dx_points) + abs(dy_points)
+        consumer_penalty = 80.0 if is_consumer_only else 0.0
+        score = overlap_penalty * 10.0 + outside_penalty * 3.0 + distance_penalty + consumer_penalty
+
+        if best is None or score < best[0]:
+            if best_annotation is not None:
+                best_annotation.remove()
+            best = (score, dx_points, dy_points, current_font_size)
+            best_annotation = annotation
+        else:
+            annotation.remove()
+
+    if best_annotation is None:
+        return None
+
+    best_annotation.set_path_effects(
+        [path_effects.Stroke(linewidth=2.0, foreground="white"), path_effects.Normal()]
+    )
+    return best_annotation.get_window_extent(renderer=renderer).expanded(expand_x, expand_y)
+
+
 def _combine_position_bounds(*position_maps: dict[int, tuple[float, float]]) -> dict[int, tuple[float, float]]:
     merged: dict[int, tuple[float, float]] = {}
     offset = 0
@@ -581,25 +832,36 @@ def _draw_section_labels(
     positions: dict[int, tuple[float, float]],
     color: str,
     font_size: float,
+    style: dict | None = None,
 ) -> None:
-    centroids = compute_segment_centroids(edges_df, positions)
-    for seg_id in sorted(centroids):
-        cx, cy = centroids[seg_id]
-        dx, dy = LABEL_OFFSETS[int(seg_id) % len(LABEL_OFFSETS)]
-        text = ax.annotate(
-            str(int(seg_id)),
-            xy=(cx, cy),
-            xytext=(dx, dy),
-            textcoords="offset points",
-            ha="center",
-            va="center",
-            fontsize=font_size,
+    style = style or {}
+    ax.figure.canvas.draw()
+    renderer = ax.figure.canvas.get_renderer()
+    section_info = _compute_section_layout_info(edges_df, positions)
+    ordered_sections = sorted(
+        section_info.items(),
+        key=lambda item: (
+            0 if bool(item[1]["is_consumer_only"]) else 1,
+            float(item[1]["non_consumer_length"]),
+            float(item[1]["total_length"]),
+            int(item[1]["edge_count"]),
+        ),
+        reverse=True,
+    )
+    occupied_bboxes: list[Bbox] = []
+    for seg_id, info in ordered_sections:
+        bbox = _place_section_annotation(
+            ax=ax,
+            seg_id=seg_id,
+            info=info,
             color=color,
-            zorder=6,
+            font_size=font_size,
+            occupied_bboxes=occupied_bboxes,
+            style=style,
+            renderer=renderer,
         )
-        text.set_path_effects(
-            [path_effects.Stroke(linewidth=2.0, foreground="white"), path_effects.Normal()]
-        )
+        if bbox is not None:
+            occupied_bboxes.append(bbox)
 
 
 def _subnet_legend_handles(direction: str, style: dict | None = None) -> list[Line2D]:
@@ -774,6 +1036,7 @@ def render_subnet_figure(
             positions,
             label_color,
             font_size=float(style.get("section_label_font_size", 7.2)),
+            style=style,
         )
 
     _set_graph_limits(
@@ -858,6 +1121,7 @@ def render_combined_network_figure(
             fwd_positions,
             style.get("pipe_color_fwd", PALETTE["supply"]),
             font_size=float(style.get("section_label_font_size", 7.2)),
+            style=style,
         )
     if show_bwd_labels:
         _draw_section_labels(
@@ -866,6 +1130,7 @@ def render_combined_network_figure(
             bwd_positions,
             style.get("pipe_color_bwd", PALETTE["return"]),
             font_size=float(style.get("section_label_font_size", 7.2)),
+            style=style,
         )
 
     _set_graph_limits(

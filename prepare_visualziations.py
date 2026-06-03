@@ -149,6 +149,17 @@ NETWORK_STYLE_KEYS = {
     "pipe_color_consumer",
     "pipe_color_fwd",
     "pipe_line_width",
+    "section_label_arrow_alpha",
+    "section_label_arrow_color",
+    "section_label_arrow_line_width",
+    "section_label_base_offset_px",
+    "section_label_bbox_expand_x",
+    "section_label_bbox_expand_y",
+    "section_label_box_alpha",
+    "section_label_box_pad",
+    "section_label_consumer_font_scale",
+    "section_label_consumer_offset_scale",
+    "section_label_distance_scales",
     "section_label_color",
     "section_label_font_size",
     "use_shared_bounds",
@@ -706,12 +717,12 @@ def main() -> None:
 
     generated_paths: list[Path] = []
     generated_paths.extend(_render_network_figures(config_dir, output_dir, config.get("network_examples", {}), dpi))
-    generated_paths.extend(_render_training_curves(config_dir, output_dir, config.get("training_curves", {}), dpi))
-    generated_paths.extend(_render_distance_confusions(config_dir, output_dir, config.get("distance_confusion", {}), dpi))
-    generated_paths.extend(_render_confusion_matrices(config_dir, output_dir, config.get("confusion_matrix", {}), dpi))
-    generated_paths.extend(_render_class_distributions(config_dir, output_dir, config.get("class_distribution", {}), dpi))
-    generated_paths.extend(_render_segment_structure_histograms(config_dir, output_dir, config.get("segment_structure_histogram", {}), dpi))
-    generated_paths.extend(_render_metric_distance_scatters(config_dir, output_dir, config.get("metric_distance_scatter", {}), dpi))
+    # generated_paths.extend(_render_training_curves(config_dir, output_dir, config.get("training_curves", {}), dpi))
+    # generated_paths.extend(_render_distance_confusions(config_dir, output_dir, config.get("distance_confusion", {}), dpi))
+    # generated_paths.extend(_render_confusion_matrices(config_dir, output_dir, config.get("confusion_matrix", {}), dpi))
+    # generated_paths.extend(_render_class_distributions(config_dir, output_dir, config.get("class_distribution", {}), dpi))
+    # generated_paths.extend(_render_segment_structure_histograms(config_dir, output_dir, config.get("segment_structure_histogram", {}), dpi))
+    # generated_paths.extend(_render_metric_distance_scatters(config_dir, output_dir, config.get("metric_distance_scatter", {}), dpi))
 
     print(f"Generated {len(generated_paths)} figures into {output_dir}")
     for path in generated_paths:
