@@ -95,10 +95,10 @@
 
 \Author{Ivan Plokhikh $^{1,2}$*\orcidA{},
 Dmitriy Pushkarev $^{2}$*,
-Oleg Gobyzov $^{1,3}$*\orcidC{},
+Oleg Gobyzov $^{1,3}$\orcidC{},
 Sergey Filimonov $^{1,3}$,
 Alexander Dekterev $^{1,3}$,
-Rustam Mullyadzhanov $^{2,3}$*\orcidB{} and
+Rustam Mullyadzhanov $^{2,3}$\orcidB{} and
 Sergey Alekseenko $^{1,3}$}
 
 %\longauthorlist{yes}
@@ -655,6 +655,27 @@ The dataset generation process produced the following samples for each temperatu
 When preparing the data for training, the full graph was split into supply and return subnets, resulting in 85,050 total samples: 42,075 with a defect in the considered subnet (49.5\%) and 42,975 without a defect (50.5\%) - the latter includes 42,075 samples from the opposite subnet plus 450 defect-free samples from each subnet. This balanced distribution between defective and non-defective samples was intentionally designed to ensure robust model training.
 % }
 
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{0.8\textwidth}{lccc}
+\toprule
+\textbf{Outdoor temp.} & \textbf{Subnet} & \textbf{Max / Min / $\Delta$ (°C)} \\
+\midrule
+\multirow{2}{*}{-34°C} & Supply & 177.30 / 170.36 / 6.94 \\
+                       & Return & 129.07 / 125.93 / 3.14 \\
+\midrule
+\multirow{2}{*}{+10°C} & Supply & 64.45 / 63.94 / 0.51 \\
+                       & Return & 57.46 / 56.90 / 0.56 \\
+\bottomrule
+\end{tabularx}
+\caption{Supply and return water temperatures at the heat source for the minimum and maximum outdoor temperature scenarios.}\label{tab:temperatures}
+\end{table}
+
+\revision{
+The corresponding supply and return water temperatures at the heat source for the extreme scenarios are summarized in Table~\ref{tab:temperatures}. The temperature difference across the network is noticeably larger in the supply subnet than in the return subnet at lower outdoor temperatures, whereas at higher temperatures the thermal losses are less pronounced.
+}
+
 \subsection{Stage 2: Application to DHN Fault Localization}\label{stage2}
 
 % In Stage 1, to identify an architecture capable of effectively capturing data propagating from neighboring nodes, we conducted a series of experiments on synthetic data, framing the problem as edge-level regression. Having understood what a suitable GNN should look like, we moved on to fault localization in DHNs. Since the real-world graph data is extremely sparse, we reformulated the problem as multi-class classification. For this purpose, we modified the network by replacing the final regression layer with a classification head and adding a global pooling.
@@ -693,7 +714,7 @@ represented as a graph with 187 nodes (junctions, consumers, source/sink) and
 		\centering
 		\includegraphics[width=16.0 cm]{Figures/dhn_example.png}
 	\end{adjustwidth}
-	\caption{An illustration of the district heating network.\label{fig:dhn}}
+	\caption{An illustration of the district heating network. The scale bar corresponds to 50 m.\label{fig:dhn}}
 \end{figure}
 
 The following node features were used for model training:
@@ -918,9 +939,9 @@ horizontal line at distance 0 with value 1.0.
 	\caption{Distance confusion matrices: (\textbf{a}) Supply subnet. (\textbf{b}) Return subnet. \label{fig:dist_cm}}
 \end{figure}
 
-\revision{
-For segment 41, the value 1.0 at nonzero distance means that all 43 test samples belonging to this segment were assigned to another section. This makes segment 41 the main outlier in the topological-distance analysis. Segment 41 consists of a single pipe connecting a consumer to a branching node, resulting in fewer training examples compared to segments containing multiple pipes (N pipes x 225 defective samples per pipe). Since figure 5 aggregates errors only by topological distance, it indicates the local nature of the misclassifications but does not identify which classes are confused with each other. The corresponding ambiguity is therefore analyzed below using the class-distribution plots and confusion matrices.
-}
+% \revision{
+For segment 41, the value 1.0 at nonzero distance means that all 43 test samples belonging to this segment were assigned to another section. This makes segment 41 the main outlier in the topological-distance analysis. Segment 41 consists of a single pipe connecting a consumer to a branching node, resulting in fewer training examples compared to segments containing multiple pipes ($N$ pipes $\times$ 225 defective samples per pipe). Since Figure~\ref{fig:dist_cm} aggregates errors only by topological distance, it indicates the local nature of the misclassifications but does not identify which classes are confused with each other. The corresponding ambiguity is therefore analyzed below using the class-distribution plots and confusion matrices.
+% }
 
 Notably, the distribution of errors in Figure \ref{fig:dist_cm} demonstrates a
 strong bias towards local mistakes. We observe that the error mass is heavily
@@ -984,9 +1005,9 @@ To complement the hop-based analysis, we also evaluated the
 \end{figure}
 
 % \revision{
-The class-distribution panels in Figures~\ref{fig:supply_distribution_confusion} and~\ref{fig:return_distribution_confusion} show, for each network section, the number of true defect instances together with the counts of correctly and incorrectly predicted assignments. In these panels, ``True'' denotes the number of test
+The class-distribution panels in Figures~\ref{fig:supply_distribution_confusion} and~\ref{fig:return_distribution_confusion} show, for each network section, the number of true defect instances together with the counts of correctly and incorrectly predicted assignments. In these panels, ``Ground Truth'' denotes the number of test
 samples whose simulated defect is located in the corresponding section, while
-\revision{``True Positives''} and \revision{``False Positives''} denote correct and incorrect
+``True Positives'' and ``False Positives'' denote correct and incorrect
 predictions assigned to that section, respectively.
 Similar true and predicted counts can still hide
 compensating errors between neighbouring sections. Therefore, the distribution
@@ -995,36 +1016,31 @@ show the actual class-to-class error structure.
 % }
 
 % \revision{
-% The distribution of predicted classes and the corresponding confusion matrices
-% in Figures~\ref{fig:supply_distribution_confusion}
-% and~\ref{fig:return_distribution_confusion} support
-% the earlier observations. For the supply subnet, the main errors are
-% concentrated in the remote group of segments 32, 36, and 41, with segment 41
-% being the most problematic case; this confirms that the model has difficulty
-% separating weak fault signatures in the farthest part of the network. A
-% secondary supply-side ambiguity is observed for segment 35: defects in this
-% segment are sometimes assigned to the adjacent and larger segments 25 and 36,
-% which can produce similar aggregated hydraulic and thermal signatures while
-% also being represented by more training samples.
+The distribution of predicted classes and the corresponding confusion matrices in Figures~\ref{fig:supply_distribution_confusion} and~\ref{fig:return_distribution_confusion} provide more detailed information about the segment 41 outlier identified in Figures~\ref{fig:dist_cm} and~\ref{fig:metric_dist}. For the supply subnet, the main errors are concentrated in the local group of segments 32, 36, and 41, which are among the farthest supply-side segments from the heat source. As a result, the thermohydraulic signatures from these segments are attenuated, making defects in them less pronounced in the available observations. However, the outlier behaviour of segment 41 is not explained by distance from the heat source alone. Segments 37 and 38 are also remote, but their fault signatures remain distinguishable under the available sensor configuration.
+% }
 
-\revision{
-The distribution of predicted classes and the corresponding confusion matrices in Figures~\ref{fig:supply_distribution_confusion} and~\ref{fig:return_distribution_confusion} provide more detailed information about the segment 41 outlier identified in Figures~\ref{fig:dist_cm} and~\ref{fig:metric_dist}. For the supply subnet, the main errors are concentrated in the local group of segments 32, 36, and 41. These segments are among the most remote supply-side segments from the heat source. These segments are among the farthest supply-side segments from the heat source. As a result, the thermohydraulic signature from these segments is attentuated, making defects in them less pronounced in the available observations. However, the outlier behaviour of segment 41 is not explained by distance from the heat source alone. Segments 37 and 38 are also remote, but their fault signatures remain distinguishable under the available sensor configuration.}
+% \revision{
+A more specific explanation is the combination of attenuation, unequal class representation, and sparse observability. The dataset is generated uniformly at the pipe level, but after pipes are grouped into section labels, longer sections naturally contribute more defective samples than shorter sections. Thus, segment 41, which contains a single pipe, provides fewer training examples than segments 32 and 36, which include more pipes. In addition, segments 32, 36, and 41 form a T-shaped group that, in the supply subnet, is observed mainly through one downstream sensor at the end of segment 41. Faults in these neighbouring segments can therefore produce similar thermohydraulic signatures, causing the model to confuse them with each other.
+% }
 
-\revision{
-A more specific explanation is the combination of attenuation, unequal class representation, and sparse observability. As noted above, segment 41 is a single-pipe class, whereas segments 32 and 36 include more pipes and therefore provide more training examples. In addition, segments 32, 36, and 41 form a T-shaped group that, in the supply subnet, is observed mainly through one downstream sensor at the end of segment 41. Faults in these neighbouring segments can therefore produce similar thermohydraulic signatures, causing the model to confuse them with each other. A secondary supply-side ambiguity is also observed for segment 35, whose defects are sometimes assigned to the adjacent and larger segments 25 and 36. This follows the same general pattern of local confusion between neighbouring sections, but it is less pronounced than the segment 41 case.}
+% \revision{
+The asymmetry between the supply and return predictions for segment 41 further supports this interpretation. In the return subnet, the flow direction is reversed, and additional downstream sensor information is available along the return path. This makes disturbances originating in segments 32 and 36 more directly observable than in the supply subnet, where only the sensor at the end of segment 41 lies downstream of this group. This particular combination of segment grouping, flow direction, and sensor placement is specific to segment 41 within the considered network topology, which supports the proposed explanation for the errors observed in this segment. Thus, the segment 41 error may be interpreted as a localized ambiguity within the considered sparse monitoring scheme rather than a general model weakness.
+% }
 
-\revision{
-The asymmetry between the supply and return predictions for segment 41 further supports this interpretation. In the return subnet, the flow direction is reversed, and additional downstream sensor information is available along the return path. This makes disturbances originating in segments 32 and 36 more directly observable than in the supply subnet, where only the sensor at the end of segment 41 lies downstream of this group. This particular combination of segment grouping, flow direction, and sensor placement is specific to segment 41 within the considered network topology, which supports the proposed explanation for the errors observed in this segment. Thus, the segment 41 error may be interpreted as a localized ambiguity within the considered sparse monitoring scheme rather than a general model weakness.}
+% \revision{
+For the return subnet more broadly, the misclassifications are more diffuse and scattered across several classes. This pattern is consistent with the narrower range of dynamic temperature and pressure values in the return line, where class-specific fault signatures become less pronounced relative to background variability. In particular, segment 0 is a long terminal section composed of five pipes and is often assigned when the true defect is located in the shorter neighbouring segments 1, 2, or 4. This effect is much weaker in the supply subnet, where stronger thermal and hydraulic gradients and additional downstream consumer measurements make the corresponding signatures more separable.
+% }
 
-\revision{
-For the return subnet more broadly, the misclassifications are more diffuse and scattered across several classes. This pattern is consistent with the narrower range of dynamic temperature and pressure values in the return line, where class-specific fault signatures become less pronounced relative to background variability. In particular, return-subnet segment 0 is often confused with nearby segments 1, 2, and 4. This segment is located close to the return-side boundary node, where the heat carrier has already passed through the network and the thermal and hydraulic responses are smoother. In addition, segment 0 contains several long pipes, so disturbances originating in adjacent sections can produce similar aggregate signatures and be assigned to this segment.}
+% \revision{
+Other local return-side ambiguities follow the same pattern but are less severe. Segment 35 contains three pipes and is sometimes confused with larger adjacent sections, namely segment 25 downstream and segment 36 nearby, whereas segments 25 and 36 themselves are recognized more reliably, with only minor misassignments to neighbouring classes. Segment 19 is also occasionally assigned to downstream segment 10, while segment 10 remains mostly distinguishable with only small local confusions. In the supply subnet, the confusion between segments 30 and 31 is limited; these sections are located near two consumer branches, so the available measurements provide more information for separating their fault signatures.
+% }
 
-\revision{
-The observed error pattern may also be informative from a monitoring design perspective. The high overall accuracy and local structure of the errors indicate that useful localization can be achieved with a limited set of suitably placed sensors, which is consistent with the optimal sensor placement concept discussed by Rosich et al. ~\cite{rosich2012optimal}. At the same time, the largest localization errors measured along the pipe network are concentrated in the same local region where the confusion matrices indicate ambiguity between sections 32, 36, and 41. This suggests that the present sensor layout provides insufficient observability for this particular T-shaped group. The junction connecting these sections is therefore a natural candidate location for an additional measurement point.}
+% \revision{
+The observed error pattern may also be informative from a monitoring design perspective. The high overall accuracy and local structure of the errors indicate that useful localization can be achieved with a limited set of suitably placed sensors, which is consistent with the optimal sensor placement concept discussed by Rosich et al.~\cite{rosich2012optimal}. In the present experiments, nonzero pressure and temperature measurements were retained only at the heat-source supply/return boundary nodes and at consumer connection nodes. At the same time, the largest localization errors measured along the pipe network are concentrated in the same local region where the confusion matrices indicate ambiguity between sections 32, 36, and 41. This suggests that the present sensor layout provides insufficient observability for this particular T-shaped group. Therefore, pipe-junction nodes incident to these sections are natural candidate locations for additional measurement points.
+% }
 
-\revision{
-More generally, a calibrated thermohydraulic model and a trained fault localization model can be used as a heuristic approach for sparse sensor augmentation. Since simulated states are available for the full network before sensor masking, candidate sensor layouts can be emulated by retaining measurements only at selected nodes. These layouts can then be compared by checking whether recurring confusions between neighbouring sections decrease. If the same local group of sections remains difficult to separate, it can be treated as insufficiently observable and considered for the placement of additional sensors. This procedure does not replace formal optimal sensor placement, but it can provide a simulation-based supporting tool for testing candidate layouts and selecting promising sensor locations under limits on the number of sensors.
-}
+% \revision{
+More generally, a calibrated thermohydraulic model and a trained fault localization model can be used as a heuristic approach for sparse sensor augmentation. Since simulated states are available for the full network before sensor masking, candidate sensor layouts can be emulated by retaining measurements only at selected nodes, including intermediate junction nodes that are not instrumented in the current sparse layout. These layouts can then be compared by checking whether recurring confusions between neighbouring sections decrease. If the same local group of sections remains difficult to separate, it can be treated as insufficiently observable and considered for the placement of additional sensors. This procedure does not replace formal optimal sensor placement, but it can provide a simulation-based supporting tool for testing candidate layouts and selecting promising sensor locations under limits on the number of sensors.
 % }
 
 \subsection{Ablation Studies}
@@ -1128,9 +1144,9 @@ respectively. These metrics were obtained under sparse sensor coverage (only 30
 of 187 nodes contained non-zero thermal and pressure features), simulating
 realistic, data-limited conditions. The ablation studies further confirmed that
 the attention mechanism and network depth are critical factors for performance.
-\revision{
+% \revision{
 The distance confusion matrix reveals that most errors are localized within a topological distance of 1-2 sections from the actual defect, indicating that the model captures the attenuation of hydraulic and thermal disturbances along the network topology while still exhibiting local ambiguities in poorly observed regions.
-}
+% }
 % \revision{
 
 The current thermohydraulic model is a simplified representation of a real district heating network. It does not include shut-off and control valves (e.g., gate valves, check valves, bypasses), intermediate switching states, or gradual pipe degradation. These factors will be incorporated in future work to reduce the simulation-to-reality gap.
@@ -1153,9 +1169,9 @@ sparse SCADA-like pressure and temperature measurements together with network
 topology to narrow the inspection area.
 % }
 
-\revision{
+% \revision{
 The error analysis also suggests an additional use of the proposed framework for sensor-layout assessment. Although most misclassifications remain topologically local, the recurring confusion between sections 32, 36, and 41 indicates a local observability limitation under the current sparse monitoring scheme. Such persistent confusion patterns can help identify candidate locations for additional sensors and provide a simulation-based approach for future sensor-placement studies.
-}
+% }
 
 However, we recognize that the most significant challenge remains the
 acquisition of high-quality, labeled data to support such data-driven
